@@ -61,6 +61,7 @@
     "south-america":  "South America",
     "asia":           "Asia",
     "oceania":        "Oceania",
+    cryptic: "Cryptic",
   };
   let attempts = []; // [[{code, color}, ...], ...]
   let currentRow = []; // draft row of airport codes
@@ -102,6 +103,7 @@
     "south-america": $("mode-south-america"),
     "asia":          $("mode-asia"),
     "oceania":       $("mode-oceania"),
+    cryptic:         $("mode-cryptic"),
   };
   const difficultyEl = $("puzzle-difficulty");
   const toast = $("toast");
@@ -230,21 +232,29 @@
     const nq = normalise(q);
     if (!nq) return [];
     const matches = [];
+    // Cryptic restricts the search itself to IATA codes — no city / name
+    // hits, so a player can't sneak in by typing "tokyo".
+    const cryptic = mode === "cryptic";
     for (const code of ALL_CODES) {
       // In continent modes, hide airports that aren't in the active subgraph
       // — they'd be unflyable anyway and clutter the dropdown.
       if (!activeCodes.has(code)) continue;
       const a = AIRPORTS[code];
       const nCode = code.toLowerCase();
-      const nCity = normalise(a.city);
-      const nName = normalise(a.name);
       let score = -1;
-      if (nCode === nq) score = 0;
-      else if (nCode.startsWith(nq)) score = 1;
-      else if (nCity.startsWith(nq)) score = 2;
-      else if (nName.startsWith(nq)) score = 3;
-      else if (nCity.includes(nq)) score = 4;
-      else if (nName.includes(nq)) score = 5;
+      if (cryptic) {
+        if (nCode === nq) score = 0;
+        else if (nCode.startsWith(nq)) score = 1;
+      } else {
+        const nCity = normalise(a.city);
+        const nName = normalise(a.name);
+        if (nCode === nq) score = 0;
+        else if (nCode.startsWith(nq)) score = 1;
+        else if (nCity.startsWith(nq)) score = 2;
+        else if (nName.startsWith(nq)) score = 3;
+        else if (nCity.includes(nq)) score = 4;
+        else if (nName.includes(nq)) score = 5;
+      }
       if (score >= 0) matches.push({ code, score });
     }
     matches.sort((a, b) => a.score - b.score || a.code.localeCompare(b.code));
@@ -929,11 +939,19 @@
     if (ddCont) ddCont.classList.toggle("has-active", isContinent);
     applyModeGraph(m);
 
+    // Cryptic strips every place-name surface from the UI. Toggle the body
+    // class first so all the renders below pick the right styling.
+    document.body.classList.toggle("cryptic-mode", m === "cryptic");
+
     let next = null;
     if (m === "daily") {
       next = dailyPuzzle();
     } else if (m === "random") {
       next = randomPuzzleAnyTier();
+    } else if (m === "cryptic") {
+      // Cryptic plays a random puzzle from any tier — same picker as Random.
+      next = randomPuzzleAnyTier();
+      if (next) next.id = `Cryptic #${next.id.split("#")[1] || ""}`.trim();
     } else if (MODE_CONTINENT[m]) {
       next = randomContinentPuzzle(MODE_CONTINENT[m]);
     } else {

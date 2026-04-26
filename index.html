@@ -88,6 +88,29 @@
   .mode-menu button:hover { background: var(--bg-alt); color: var(--accent); }
   .mode-menu button.active { background: var(--accent); color: var(--bg); }
 
+  /* ---------- Cryptic mode ---------- */
+  /* In Cryptic, only IATA codes are exposed. Hide every city/country/name
+     surface plus the entire flight map, and let the left column take the
+     full width of the layout. */
+  body.cryptic-mode .right-col { display: none; }
+  body.cryptic-mode .endpoint .city,
+  body.cryptic-mode .cell .city,
+  body.cryptic-mode .suggestion .s-city,
+  body.cryptic-mode .suggestion .s-country,
+  body.cryptic-mode .sol-name { display: none !important; }
+  /* The solution-airport pill normally invites a click to reveal the name —
+     in Cryptic it has nothing to reveal, so make it look static. */
+  body.cryptic-mode .solution-route .sol-airport { cursor: default; border-color: transparent; }
+  body.cryptic-mode .solution-route .sol-airport:hover { background: transparent; border-color: transparent; }
+  /* Subtle "you're in Cryptic" hint just under the puzzle header. */
+  body.cryptic-mode .puzzle-header::after {
+    content: "Cryptic mode — codes only, no map, no names.";
+    display: block; margin-top: 10px;
+    color: var(--accent); font-size: 11px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase; text-align: center;
+    opacity: 0.7;
+  }
+
   .puzzle-header {
     width: 100%; max-width: 720px; background: var(--panel); border: 1px solid var(--border);
     border-radius: 14px; padding: 18px 20px; margin-bottom: 16px;
@@ -375,7 +398,7 @@
     </div>
   </div>
 
-  <div class="mode-dropdown" id="dropdown-continent">
+  <div class="mode-dropdown group-end" id="dropdown-continent">
     <button class="mode-trigger" id="trigger-continent" type="button"
             aria-haspopup="true" aria-expanded="false">
       By Continent<span class="caret">&#9662;</span>
@@ -389,6 +412,8 @@
       <button id="mode-oceania"       role="menuitem" title="Routes within Oceania">Oceania</button>
     </div>
   </div>
+
+  <button id="mode-cryptic" title="Random puzzle, no map, IATA codes only — pure pathfinding">Cryptic</button>
 </div>
 
 <div class="layout">
