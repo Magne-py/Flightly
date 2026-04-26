@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JetSets — the daily flight-routing puzzle</title>
+<style>
+  :root {
+    --bg: #0e1a2b;
+    --bg-alt: #162638;
+    --panel: #1c2e45;
+    --border: #29405c;
+    --text: #e8eef6;
+    --muted: #8ea3bf;
+    --accent: #4ea8ff;
+    --green: #57c26a;
+    --lightgreen: #a5d6a7;
+    --yellow: #e9c13e;
+    --orange: #e67e2b;
+    --red: #d4504c;
+    --neutral: #304866;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 60px; }
+  .title {
+    font-size: 32px; font-weight: 800; letter-spacing: -0.5px; margin: 0 0 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .title .plane { display: inline-block; transform: rotate(-25deg); color: var(--accent); }
+  .tagline { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+  .mode-toggle {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px; margin-bottom: 20px;
+  }
+  .mode-toggle button {
+    background: transparent; color: var(--muted); border: 0; padding: 8px 14px;
+    border-radius: 999px; font-weight: 600; font-size: 13px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .mode-toggle button:hover { color: var(--text); }
+  .mode-toggle button.active { background: var(--accent); color: var(--bg); }
+  /* Subtle separator between mode groups (Daily | Random | Difficulty | Continent) */
+  .mode-toggle button.group-end,
+  .mode-toggle .mode-dropdown.group-end { margin-right: 6px; position: relative; }
+  .mode-toggle button.group-end::after,
+  .mode-toggle .mode-dropdown.group-end::after {
+    content: ""; position: absolute; right: -4px; top: 18%; bottom: 18%;
+    width: 1px; background: var(--border);
+  }
+
+  /* ---------- Mode dropdowns (By Difficulty / By Continent) ---------- */
+  .mode-dropdown { position: relative; display: inline-flex; }
+  .mode-dropdown .mode-trigger .caret {
+    margin-left: 4px; font-size: 10px; opacity: 0.7;
+    transition: transform 0.15s;
+  }
+  .mode-dropdown:hover .mode-trigger .caret,
+  .mode-dropdown.open .mode-trigger .caret { transform: rotate(180deg); }
+  /* When the active mode is one of the dropdown's children, light the trigger up. */
+  .mode-dropdown.has-active .mode-trigger { background: var(--accent); color: var(--bg); }
+  .mode-dropdown.has-active .mode-trigger .caret { opacity: 0.9; }
+  /* Popover */
+  .mode-menu {
+    position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    margin-top: 6px; min-width: 160px;
+    display: none; flex-direction: column; gap: 2px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    z-index: 30;
+  }
+  .mode-dropdown:hover .mode-menu,
+  .mode-dropdown:focus-within .mode-menu,
+  .mode-dropdown.open .mode-menu { display: flex; }
+  /* Invisible hover bridge so the menu doesn't blink when the cursor crosses
+     the gap between the trigger and the floating popover. */
+  .mode-menu::before {
+    content: ""; position: absolute; left: 0; right: 0; top: -8px; height: 8px;
+  }
+  .mode-menu button {
+    background: transparent; color: var(--text); border: 0;
+    text-align: left; padding: 8px 12px; border-radius: 8px;
+    font-weight: 600; font-size: 13px; cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .mode-menu button:hover { background: var(--bg-alt); color: var(--accent); }
+  .mode-menu button.active { background: var(--accent); color: var(--bg); }
+
+  .puzzle-header {
+    width: 100%; max-width: 720px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px 20px; margin-bottom: 16px;
+  }
+  .route-display {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    font-size: 18px; font-weight: 600;
+  }
+  .endpoint { display: flex; flex-direction: column; align-items: center; }
+  .endpoint .code { font-size: 28px; font-weight: 800; letter-spacing: 1px; color: var(--accent); }
+  .endpoint .city { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .route-arrow { color: var(--muted); font-size: 22px; letter-spacing: 4px; }
+  .puzzle-meta {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    justify-content: space-between; align-items: center;
+    margin-top: 12px; color: var(--muted); font-size: 12px;
+  }
+  .puzzle-meta .shortest { color: var(--accent); font-weight: 600; }
+  .puzzle-difficulty {
+    letter-spacing: 1px;
+  }
+  .puzzle-difficulty .star-on  { color: var(--yellow); }
+  .puzzle-difficulty .star-off { color: var(--border); }
+  .puzzle-difficulty .label    { color: var(--muted); margin-right: 6px; }
+
+  .grid { width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 8px; }
+  .row {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+    opacity: 0.55;
+  }
+  .row.active { opacity: 1; }
+  .row.done { opacity: 1; }
+  .cell {
+    background: var(--bg-alt); border: 2px solid var(--border); border-radius: 10px;
+    min-height: 68px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 20px; letter-spacing: 1px; color: var(--text);
+    position: relative; transition: all 0.25s;
+  }
+  .cell .code { font-size: 22px; }
+  .cell .city { font-size: 10px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+  .cell.empty { color: var(--muted); }
+  .cell.green      { background: var(--green);      border-color: var(--green);      color: #fff; }
+  .cell.lightgreen { background: var(--lightgreen); border-color: var(--lightgreen); color: #0e1a2b; }
+  .cell.yellow     { background: var(--yellow);     border-color: var(--yellow);     color: #111; }
+  .cell.orange     { background: var(--orange);     border-color: var(--orange);     color: #fff; }
+  .cell.red        { background: var(--red);        border-color: var(--red);        color: #fff; }
+  .cell.green .city, .cell.orange .city, .cell.red .city { color: rgba(255,255,255,0.8); }
+  .cell.yellow .city, .cell.lightgreen .city { color: rgba(0,0,0,0.65); }
+
+  .input-row {
+    display: flex; gap: 8px; margin-top: 16px; width: 100%; max-width: 720px;
+    position: relative;
+  }
+  .input-row input {
+    flex: 1; background: var(--panel); border: 2px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; color: var(--text); font-size: 16px; font-weight: 600; letter-spacing: 0.5px;
+    outline: none;
+  }
+  .input-row input:focus { border-color: var(--accent); }
+  .input-row .btn {
+    background: var(--accent); color: var(--bg); border: 0; border-radius: 10px;
+    padding: 0 18px; font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+  .input-row .btn.secondary { background: var(--neutral); color: var(--text); }
+  .input-row .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .suggestions {
+    position: absolute; top: 52px; left: 0; right: 110px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 10px; max-height: 220px; overflow-y: auto;
+    z-index: 10; display: none;
+  }
+  .suggestions.active { display: block; }
+  .suggestion {
+    padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between;
+    border-bottom: 1px solid var(--border); font-size: 14px;
+  }
+  .suggestion:last-child { border-bottom: 0; }
+  .suggestion:hover, .suggestion.highlighted { background: var(--bg-alt); }
+  .suggestion .s-code { font-weight: 700; color: var(--accent); }
+  .suggestion .s-city { color: var(--muted); margin-left: 8px; }
+  .suggestion .s-country { color: var(--muted); font-size: 12px; }
+
+  .status-bar {
+    width: 100%; max-width: 720px; margin-top: 14px; font-size: 14px; color: var(--muted);
+    min-height: 20px; text-align: center;
+  }
+  .status-bar.win { color: var(--green); font-weight: 700; }
+  .status-bar.lose { color: var(--red); font-weight: 700; }
+
+  .give-up-row {
+    width: 100%; max-width: 720px; text-align: center; margin-top: 6px;
+  }
+  .give-up-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent; padding: 5px 12px;
+    border-radius: 6px; font-size: 12px; cursor: pointer;
+    transition: color 0.12s, border-color 0.12s, background 0.12s;
+  }
+  .give-up-btn:hover {
+    color: var(--red); border-color: var(--border); background: var(--bg-alt);
+  }
+  .give-up-btn:disabled {
+    opacity: 0.35; cursor: not-allowed;
+  }
+  .give-up-btn:disabled:hover {
+    color: var(--muted); border-color: transparent; background: transparent;
+  }
+
+  .result-panel {
+    width: 100%; max-width: 720px; margin-top: 20px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px;
+    display: none;
+  }
+  .result-panel.visible { display: block; }
+  .result-panel h2 { margin: 0 0 8px; font-size: 22px; }
+  .result-stats { display: flex; gap: 24px; color: var(--muted); font-size: 14px; margin: 8px 0 14px; }
+  .result-stats strong { color: var(--text); font-size: 18px; display: block; }
+  .result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .solution-block { margin: 6px 0 16px; }
+  .solution-label { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  .solution-count { color: var(--accent); text-decoration: underline; cursor: pointer; font-weight: 600; margin-left: 4px; }
+  .solution-count.solo { color: var(--muted); text-decoration: none; cursor: default; font-weight: 500; }
+  .solution-route { color: var(--text); font-size: 14px; line-height: 1.85; }
+  .solution-route .sol-airport {
+    display: inline-block; padding: 1px 6px; margin: 0 1px;
+    border-radius: 5px; cursor: pointer;
+    border: 1px dashed transparent;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .solution-route .sol-airport:hover { background: var(--bg-alt); border-color: var(--border); }
+  .solution-route .sol-airport.expanded { background: var(--bg-alt); border-color: var(--accent); }
+  .solution-route .sol-code { font-weight: 800; color: var(--accent); letter-spacing: 0.5px; }
+  .solution-route .sol-name { display: none; color: var(--muted); font-weight: 500; }
+  .solution-route .sol-airport.expanded .sol-name { display: inline; }
+  .solution-route .sol-arrow { color: var(--muted); margin: 0 2px; }
+  .solution-route .sol-direct { color: var(--muted); font-style: italic; }
+  .solution-list { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--border); max-height: 320px; overflow-y: auto; }
+  .solution-list .solution-route { margin: 4px 0; }
+  .solution-num { color: var(--muted); margin-right: 6px; font-weight: 600; min-width: 24px; display: inline-block; }
+  .solution-more { color: var(--muted); font-size: 12px; padding: 6px 0; font-style: italic; }
+
+  .legend {
+    width: 100%; max-width: 720px; margin-top: 24px; padding: 14px 18px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    font-size: 13px; color: var(--muted);
+  }
+  .legend h3 { margin: 0 0 8px; color: var(--text); font-size: 14px; }
+  .legend-row { display: flex; align-items: flex-start; gap: 10px; margin: 4px 0; }
+  .swatch { width: 14px; height: 14px; border-radius: 3px; flex: 0 0 14px; margin-top: 2px; }
+  .swatch.green { background: var(--green); }
+  .swatch.lightgreen { background: var(--lightgreen); }
+  .swatch.yellow { background: var(--yellow); }
+  .swatch.orange { background: var(--orange); }
+  .swatch.red { background: var(--red); }
+
+  .toast {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--border); padding: 10px 16px;
+    border-radius: 8px; z-index: 100; opacity: 0; transition: opacity 0.2s;
+    pointer-events: none; font-size: 14px;
+  }
+  .toast.visible { opacity: 1; }
+
+  /* ---------- Two-column layout + map ---------- */
+  .layout {
+    display: flex; gap: 24px; width: 100%; max-width: 1180px; align-items: flex-start;
+  }
+  .left-col { flex: 1 1 720px; min-width: 0; display: flex; flex-direction: column; align-items: stretch; }
+  .right-col { flex: 0 0 420px; position: sticky; top: 20px; }
+  .left-col .puzzle-header,
+  .left-col .grid,
+  .left-col .input-row,
+  .left-col .status-bar,
+  .left-col .result-panel,
+  .left-col .legend { max-width: 100%; }
+
+  .map-panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px; position: relative;
+  }
+  .map-panel h3 {
+    margin: 0 0 10px; font-size: 13px; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--muted); font-weight: 600;
+  }
+  #globe {
+    width: 100%; height: auto; display: block;
+    cursor: grab;
+    touch-action: none;
+  }
+  #globe:active { cursor: grabbing; }
+
+  .globe-sphere { fill: #0a1522; stroke: var(--border); stroke-width: 1; }
+  .globe-graticule { fill: none; stroke: var(--border); stroke-width: 0.6; opacity: 0.35; }
+  .globe-equator { fill: none; stroke: var(--border); stroke-width: 1; opacity: 0.55; }
+  .globe-land     { fill: #17293d; stroke: #3a597d; stroke-width: 0.8; stroke-linejoin: round; }
+  .globe-island   { fill: #17293d; stroke: #3a597d; stroke-width: 0.7; stroke-linejoin: round; }
+
+  .leg-line { fill: none; stroke-width: 2; stroke-linecap: round; }
+  .leg-line.draft { stroke: var(--accent); stroke-dasharray: 4 4; opacity: 0.95; }
+  .leg-line.green      { stroke: var(--green);      stroke-dasharray: none; opacity: 0.55; }
+  .leg-line.lightgreen { stroke: var(--lightgreen); stroke-dasharray: none; opacity: 0.6;  }
+  .leg-line.yellow     { stroke: var(--yellow);     stroke-dasharray: none; opacity: 0.55; }
+  .leg-line.orange { stroke: var(--orange); stroke-dasharray: none; opacity: 0.55; }
+  .leg-line.red    { stroke: var(--red);    stroke-dasharray: 2 3; opacity: 0.45; }
+  .leg-line.latest { opacity: 0.95; stroke-width: 2.5; }
+  .leg-line.solution {
+    stroke: var(--accent); stroke-width: 3; opacity: 0.95;
+    stroke-dasharray: none;
+    filter: drop-shadow(0 0 3px rgba(78, 168, 255, 0.45));
+  }
+
+  .marker-start    { fill: var(--green);  stroke: #fff; stroke-width: 1.6; }
+  .marker-dest     { fill: var(--red);    stroke: #fff; stroke-width: 1.6; }
+  .marker-draft    { fill: var(--accent); stroke: #fff; stroke-width: 1.2; }
+  .marker-solution { fill: var(--accent); stroke: #fff; stroke-width: 1.6; }
+  .marker-label {
+    font: 700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    fill: var(--text); paint-order: stroke; stroke: var(--bg); stroke-width: 3;
+    stroke-linejoin: round;
+  }
+  .marker-sublabel {
+    font: 600 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    fill: var(--muted); paint-order: stroke; stroke: var(--bg); stroke-width: 3;
+  }
+  .waypoint-badge {
+    font: 700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    fill: var(--bg); dominant-baseline: middle; text-anchor: middle;
+  }
+
+  .map-hint {
+    margin-top: 8px; font-size: 11px; color: var(--muted); text-align: center;
+  }
+
+  .map-zoom {
+    position: absolute; top: 14px; right: 14px;
+    display: flex; flex-direction: column; gap: 4px; z-index: 5;
+  }
+  .map-zoom-btn {
+    width: 30px; height: 30px; padding: 0; line-height: 1;
+    background: var(--bg-alt); border: 1px solid var(--border);
+    color: var(--text); font-size: 16px; font-weight: 700;
+    border-radius: 7px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .map-zoom-btn:hover { background: var(--neutral); border-color: var(--accent); }
+  .map-zoom-btn:active { background: var(--accent); color: var(--bg); }
+  .map-zoom-btn.reset { font-size: 14px; }
+
+  @media (max-width: 960px) {
+    .layout { flex-direction: column; align-items: stretch; }
+    .right-col { flex: 0 0 auto; position: static; width: 100%; max-width: 720px; align-self: center; }
+  }
+
+  @media (max-width: 520px) {
+    .title { font-size: 26px; }
+    .cell { min-height: 56px; font-size: 16px; }
+    .cell .code { font-size: 18px; }
+    .endpoint .code { font-size: 22px; }
+    .suggestions { right: 90px; }
+  }
+</style>
+</head>
+<body>
+
+<h1 class="title"><span class="plane">&#9992;</span> JetSets</h1>
+<p class="tagline">Route the shortest journey in 6 tries.</p>
+
+<div class="mode-toggle" role="tablist" aria-label="Game mode">
+  <button id="mode-daily"  class="active">Daily</button>
+  <button id="mode-random" class="group-end" title="A random puzzle from any difficulty tier">Random</button>
+
+  <div class="mode-dropdown group-end" id="dropdown-difficulty">
+    <button class="mode-trigger" id="trigger-difficulty" type="button"
+            aria-haspopup="true" aria-expanded="false">
+      By Difficulty<span class="caret">&#9662;</span>
+    </button>
+    <div class="mode-menu" role="menu" aria-labelledby="trigger-difficulty">
+      <button id="mode-simple"  data-stars="1" role="menuitem" title="Well-known hubs, many alternative routes">Simple</button>
+      <button id="mode-easy"    data-stars="2" role="menuitem" title="Familiar hubs, a couple of alternative routes">Easy</button>
+      <button id="mode-medium"  data-stars="3" role="menuitem" title="Mixed-fame stops, narrow path tolerance">Medium</button>
+      <button id="mode-hard"    data-stars="4" role="menuitem" title="Less-familiar connections, tight slot choices">Hard</button>
+      <button id="mode-extreme" data-stars="5" role="menuitem" title="Obscure hubs, long routes, almost no margin for error">Extreme</button>
+    </div>
+  </div>
+
+  <div class="mode-dropdown" id="dropdown-continent">
+    <button class="mode-trigger" id="trigger-continent" type="button"
+            aria-haspopup="true" aria-expanded="false">
+      By Continent<span class="caret">&#9662;</span>
+    </button>
+    <div class="mode-menu" role="menu" aria-labelledby="trigger-continent">
+      <button id="mode-africa"        role="menuitem" title="Routes within Africa">Africa</button>
+      <button id="mode-europe"        role="menuitem" title="Routes within Europe">Europe</button>
+      <button id="mode-north-america" role="menuitem" title="Routes within North America (incl. Caribbean &amp; Central America)">North America</button>
+      <button id="mode-south-america" role="menuitem" title="Routes within South America">South America</button>
+      <button id="mode-asia"          role="menuitem" title="Routes within Asia">Asia</button>
+      <button id="mode-oceania"       role="menuitem" title="Routes within Oceania">Oceania</button>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="left-col">
+    <div class="puzzle-header">
+      <div class="route-display">
+        <div class="endpoint">
+          <div class="code" id="start-code">—</div>
+          <div class="city" id="start-city">&nbsp;</div>
+        </div>
+        <div class="route-arrow">&#x2708; &#x2192;</div>
+        <div class="endpoint">
+          <div class="code" id="dest-code">—</div>
+          <div class="city" id="dest-city">&nbsp;</div>
+        </div>
+      </div>
+      <div class="puzzle-meta">
+        <span id="puzzle-id">—</span>
+        <span class="puzzle-difficulty" id="puzzle-difficulty" title="Puzzle difficulty"></span>
+        <span>Shortest path: <span class="shortest" id="shortest-hops">—</span></span>
+      </div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <div class="input-row">
+      <input
+        id="airport-input"
+        type="text"
+        placeholder="Type next stop (IATA, city, or name)…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="add-btn" class="btn">Add</button>
+      <button id="undo-btn" class="btn secondary" title="Remove the last airport you added (also: Backspace on an empty input)">Undo</button>
+      <button id="submit-btn" class="btn secondary">Submit</button>
+      <div class="suggestions" id="suggestions"></div>
+    </div>
+
+    <div class="status-bar" id="status-bar">Type an airport and press Enter or Add. Press Backspace on an empty input (or tap Undo) to remove the last stop. Submit (or press Shift+Enter) when ready — leave trailing boxes empty for a shorter route.</div>
+
+    <div class="give-up-row">
+      <button id="give-up-btn" class="give-up-btn" title="Reveal the answer and end the round">Give up &amp; reveal answer</button>
+    </div>
+
+    <div class="result-panel" id="result-panel">
+      <h2 id="result-heading"></h2>
+      <div class="result-stats" id="result-stats"></div>
+      <div class="result-actions">
+        <button id="share-btn" class="btn">Share</button>
+        <button id="new-puzzle-btn" class="btn secondary" style="display:none">New practice puzzle</button>
+      </div>
+    </div>
+
+    <div class="legend">
+      <h3>How grading works</h3>
+      <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — on the shortest route &amp; in the right slot.</div></div>
+      <div class="legend-row"><div class="swatch yellow"></div><div><b>Yellow</b> — on the shortest route but wrong slot.</div></div>
+      <div class="legend-row"><div class="swatch orange"></div><div><b>Orange</b> — a valid onward flight that still reaches the destination, just via a longer route.</div></div>
+      <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight exists from the previous airport, or there's no onward path to the destination.</div></div>
+      <div class="legend-row"><div class="swatch lightgreen"></div><div><b>Light green</b> — the row that completes the journey; lit up when you've finished the puzzle (paler if you took more stops than the shortest route).</div></div>
+    </div>
+  </div>
+
+  <div class="right-col">
+    <div class="map-panel">
+      <h3>Flight map</h3>
+      <div class="map-zoom" role="group" aria-label="Map zoom controls">
+        <button class="map-zoom-btn" id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+        <button class="map-zoom-btn" id="zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
+        <button class="map-zoom-btn reset" id="zoom-reset" title="Reset view" aria-label="Reset view">&#x21BA;</button>
+      </div>
+      <svg id="globe" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" aria-label="World map showing flight route"></svg>
+      <div class="map-hint">Drag to rotate · scroll or use buttons to zoom</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="data/airports.js"></script>
+<script src="data/routes.js"></script>
+<script src="data/puzzles.js"></script>
+<script src="data/continent_routes.js"></script>
+<script src="data/continent_puzzles.js"></script>
+<script src="data/coastlines.js"></script>
+<script src="globe.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
