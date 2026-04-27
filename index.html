@@ -268,15 +268,33 @@
     transition: color 0.12s, border-color 0.12s, background 0.12s;
   }
   .show-result-btn:hover { border-color: var(--accent); }
-  .result-panel h2 { margin: 0 0 4px; font-size: 17px; padding-right: 28px; }
-  .result-stats { display: flex; gap: 18px; color: var(--muted); font-size: 12px; margin: 4px 0 10px; }
-  .result-stats strong { color: var(--text); font-size: 15px; display: block; }
+  /* Heading + stats share a single row so the panel reads at a glance.
+     Wraps gracefully on very narrow viewports. */
+  .result-headrow {
+    display: flex; align-items: baseline; flex-wrap: wrap;
+    gap: 6px 14px; padding-right: 24px; margin-bottom: 8px;
+  }
+  .result-panel h2 { margin: 0; font-size: 16px; line-height: 1.2; }
+  .result-stats {
+    display: flex; flex-wrap: wrap; gap: 4px 12px;
+    color: var(--muted); font-size: 12px;
+    margin: 0; margin-left: auto;
+  }
+  .result-stats span { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+  .result-stats strong { color: var(--text); font-size: 13px; font-weight: 700; }
+
   .result-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-  .result-actions .btn { padding: 8px 14px; font-size: 13px; }
-  .result-panel .solution-block { margin: 4px 0 10px; }
-  .result-panel .solution-label { font-size: 12px; }
-  .result-panel .solution-route { font-size: 13px; line-height: 1.6; }
-  .result-panel .solution-list { max-height: 200px; }
+  .result-actions .btn { padding: 7px 12px; font-size: 12px; }
+
+  /* Solution row: "Shortest 2-stop route (3): JFK → LAX" all on one line. */
+  .result-panel .solution-block { margin: 0 0 10px; }
+  .result-panel .solution-row {
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px;
+  }
+  .result-panel .solution-label { font-size: 12px; margin-bottom: 0; }
+  .result-panel .solution-route { font-size: 13px; line-height: 1.5; margin: 0; }
+  .result-panel .solution-list { max-height: 180px; padding-top: 4px; margin-top: 4px; }
+  .result-panel .solution-list .solution-route { margin: 2px 0; }
 
   .solution-block { margin: 6px 0 16px; }
   .solution-label { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
@@ -534,8 +552,10 @@
 
     <div class="result-panel" id="result-panel" role="region" aria-labelledby="result-heading" style="display:none">
       <button class="result-close" id="modal-close" type="button" aria-label="Close">&times;</button>
-      <h2 id="result-heading"></h2>
-      <div class="result-stats" id="result-stats"></div>
+      <div class="result-headrow">
+        <h2 id="result-heading"></h2>
+        <div class="result-stats" id="result-stats"></div>
+      </div>
       <div class="result-actions">
         <button id="share-btn" class="btn">Share</button>
         <button id="new-puzzle-btn" class="btn secondary" style="display:none">New practice puzzle</button>

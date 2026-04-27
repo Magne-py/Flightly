@@ -628,10 +628,11 @@
       resultHeading.textContent = matched
         ? "You nailed the shortest route!"
         : "Route complete!";
+      // Compact pills: "<strong>2</strong> stops · <strong>3/6</strong> tries · <strong>12</strong> pts"
       resultStats.innerHTML =
-        `<div><strong>${stopsUsed}</strong>stops used</div>` +
-        `<div><strong>${attemptsUsed}/${MAX_ATTEMPTS}</strong>attempts</div>` +
-        `<div><strong>${pts}</strong>points</div>`;
+        `<span><strong>${stopsUsed}</strong>stops</span>` +
+        `<span><strong>${attemptsUsed}/${MAX_ATTEMPTS}</strong>tries</span>` +
+        `<span><strong>${pts}</strong>pts</span>`;
       statusBar.textContent = "Solved!";
       statusBar.className = "status-bar win";
     } else {
@@ -708,9 +709,12 @@
       ? `<a class="solution-count" id="solution-count" href="#"
             title="Click to see all ${count} shortest routes">(${count})</a>`
       : `<span class="solution-count solo">(1)</span>`;
+    // Primary route shares a row with its label — "Shortest 2-stop route (3): JFK → LAX".
     block.innerHTML =
-      `<div class="solution-label">Shortest ${stopsLabel} ${counterHtml}</div>
-       <div class="solution-route" id="solution-primary">${fmtRoute(routes[0])}</div>
+      `<div class="solution-row">
+         <span class="solution-label">Shortest ${stopsLabel} ${counterHtml}:</span>
+         <span class="solution-route" id="solution-primary">${fmtRoute(routes[0])}</span>
+       </div>
        <div class="solution-list" id="solution-list" style="display:none"></div>`;
     // Highlight the chosen primary shortest route on the globe so the player
     // can see exactly where it goes geographically.
