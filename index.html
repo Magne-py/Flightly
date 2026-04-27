@@ -136,21 +136,21 @@
   .puzzle-difficulty .star-off { color: var(--border); }
   .puzzle-difficulty .label    { color: var(--muted); margin-right: 6px; }
 
-  .grid { width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 8px; }
+  .grid { width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 6px; }
   .row {
-    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;
     opacity: 0.55;
   }
   .row.active { opacity: 1; }
   .row.done { opacity: 1; }
   .cell {
-    background: var(--bg-alt); border: 2px solid var(--border); border-radius: 10px;
-    min-height: 68px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 20px; letter-spacing: 1px; color: var(--text);
+    background: var(--bg-alt); border: 2px solid var(--border); border-radius: 9px;
+    min-height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; letter-spacing: 1px; color: var(--text);
     position: relative; transition: all 0.25s;
   }
-  .cell .code { font-size: 22px; }
-  .cell .city { font-size: 10px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+  .cell .code { font-size: 19px; }
+  .cell .city { font-size: 10px; color: var(--muted); font-weight: 500; margin-top: 1px; line-height: 1.1; }
   .cell.empty { color: var(--muted); }
   .cell.green      { background: var(--green);      border-color: var(--green);      color: #fff; }
   .cell.lightgreen { background: var(--lightgreen); border-color: var(--lightgreen); color: #0e1a2b; }
@@ -161,7 +161,8 @@
   .cell.yellow .city, .cell.lightgreen .city { color: rgba(0,0,0,0.65); }
 
   .input-row {
-    display: flex; gap: 8px; margin-top: 16px; width: 100%; max-width: 720px;
+    display: flex; gap: 8px; margin-top: 16px; margin-bottom: 16px;
+    width: 100%; max-width: 720px;
     position: relative;
   }
   .input-row input {
@@ -253,12 +254,31 @@
   .solution-num { color: var(--muted); margin-right: 6px; font-weight: 600; min-width: 24px; display: inline-block; }
   .solution-more { color: var(--muted); font-size: 12px; padding: 6px 0; font-style: italic; }
 
+  /* Collapsible legend (native <details>) */
   .legend {
-    width: 100%; max-width: 720px; margin-top: 24px; padding: 14px 18px;
+    width: 100%; max-width: 720px; margin-top: 24px;
     background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
     font-size: 13px; color: var(--muted);
+    overflow: hidden;
   }
-  .legend h3 { margin: 0 0 8px; color: var(--text); font-size: 14px; }
+  .legend > summary {
+    list-style: none; cursor: pointer;
+    padding: 12px 16px;
+    color: var(--text); font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; justify-content: space-between;
+    transition: background 0.12s;
+  }
+  .legend > summary::-webkit-details-marker { display: none; }
+  .legend > summary:hover { background: var(--bg-alt); }
+  .legend > summary::after {
+    content: "\25BE"; /* ▾ */
+    color: var(--muted); margin-left: 10px;
+    transition: transform 0.18s;
+  }
+  .legend[open] > summary::after { transform: rotate(180deg); }
+  .legend > summary:focus { outline: none; }
+  .legend > summary:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+  .legend .legend-body { padding: 4px 16px 14px; }
   .legend-row { display: flex; align-items: flex-start; gap: 10px; margin: 4px 0; }
   .swatch { width: 14px; height: 14px; border-radius: 3px; flex: 0 0 14px; margin-top: 2px; }
   .swatch.green { background: var(--green); }
@@ -285,8 +305,13 @@
   .left-col .grid,
   .left-col .input-row,
   .left-col .status-bar,
-  .left-col .result-panel,
-  .left-col .legend { max-width: 100%; }
+  .left-col .result-panel { max-width: 100%; }
+  /* Legend now lives in the right column, under the map. Keep it compact
+     so the whole sticky block fits in a typical desktop viewport. */
+  .right-col .legend { margin-top: 12px; max-width: 100%; font-size: 12px; }
+  .right-col .legend > summary { padding: 10px 14px; font-size: 13px; }
+  .right-col .legend .legend-body { padding: 2px 14px 12px; }
+  .right-col .legend .legend-row { margin: 3px 0; }
 
   .map-panel {
     background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
@@ -368,8 +393,8 @@
 
   @media (max-width: 520px) {
     .title { font-size: 26px; }
-    .cell { min-height: 56px; font-size: 16px; }
-    .cell .code { font-size: 18px; }
+    .cell { min-height: 46px; font-size: 15px; }
+    .cell .code { font-size: 17px; }
     .endpoint .code { font-size: 22px; }
     .suggestions { right: 90px; }
   }
@@ -437,8 +462,6 @@
       </div>
     </div>
 
-    <div class="grid" id="grid"></div>
-
     <div class="input-row">
       <input
         id="airport-input"
@@ -452,6 +475,8 @@
       <button id="submit-btn" class="btn secondary">Submit</button>
       <div class="suggestions" id="suggestions"></div>
     </div>
+
+    <div class="grid" id="grid"></div>
 
     <div class="status-bar" id="status-bar">Type an airport and press Enter or Add. Press Backspace on an empty input (or tap Undo) to remove the last stop. Submit (or press Shift+Enter) when ready — leave trailing boxes empty for a shorter route.</div>
 
@@ -467,15 +492,6 @@
         <button id="new-puzzle-btn" class="btn secondary" style="display:none">New practice puzzle</button>
       </div>
     </div>
-
-    <div class="legend">
-      <h3>How grading works</h3>
-      <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — on the shortest route &amp; in the right slot.</div></div>
-      <div class="legend-row"><div class="swatch yellow"></div><div><b>Yellow</b> — on the shortest route but wrong slot.</div></div>
-      <div class="legend-row"><div class="swatch orange"></div><div><b>Orange</b> — a valid onward flight that still reaches the destination, just via a longer route.</div></div>
-      <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight exists from the previous airport, or there's no onward path to the destination.</div></div>
-      <div class="legend-row"><div class="swatch lightgreen"></div><div><b>Light green</b> — the row that completes the journey; lit up when you've finished the puzzle (paler if you took more stops than the shortest route).</div></div>
-    </div>
   </div>
 
   <div class="right-col">
@@ -489,6 +505,17 @@
       <svg id="globe" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" aria-label="World map showing flight route"></svg>
       <div class="map-hint">Drag to rotate · scroll or use buttons to zoom</div>
     </div>
+
+    <details class="legend">
+      <summary>How grading works</summary>
+      <div class="legend-body">
+        <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — on the shortest route &amp; in the right slot.</div></div>
+        <div class="legend-row"><div class="swatch yellow"></div><div><b>Yellow</b> — on the shortest route but wrong slot.</div></div>
+        <div class="legend-row"><div class="swatch orange"></div><div><b>Orange</b> — a valid onward flight that still reaches the destination, just via a longer route.</div></div>
+        <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight exists from the previous airport, or there's no onward path to the destination.</div></div>
+        <div class="legend-row"><div class="swatch lightgreen"></div><div><b>Light green</b> — the row that completes the journey; lit up when you've finished the puzzle (paler if you took more stops than the shortest route).</div></div>
+      </div>
+    </details>
   </div>
 </div>
 

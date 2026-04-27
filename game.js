@@ -480,6 +480,8 @@
     addBtn.disabled = false;
     undoBtn.disabled = false;
     if (giveUpBtn) giveUpBtn.disabled = false;
+    // Drop the player straight into typing — no hunting for the input box.
+    if (input) input.focus();
   }
 
   function tryAddAirport(code) {
@@ -559,6 +561,8 @@
       renderGrid();
       statusBar.textContent = `Not quite — ${MAX_ATTEMPTS - attempts.length} ${MAX_ATTEMPTS - attempts.length === 1 ? "try" : "tries"} left.`;
       statusBar.className = "status-bar";
+      // Keep typing flow uninterrupted between attempts.
+      if (input) input.focus();
     }
   }
 
