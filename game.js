@@ -265,8 +265,11 @@
     if (!list.length) { suggestions.classList.remove("active"); suggestions.innerHTML = ""; return; }
     suggestions.innerHTML = list.map((code, i) => {
       const a = AIRPORTS[code];
+      // Show the airport's long-form name (e.g. "John F Kennedy International
+      // Airport") rather than the city — it's more identifying. Class stays
+      // .s-city so the cryptic-mode hide rule still catches it.
       return `<div class="suggestion${i === suggestIndex ? " highlighted" : ""}" data-code="${code}">
-                <span><span class="s-code">${code}</span><span class="s-city">${a.city}</span></span>
+                <span><span class="s-code">${code}</span><span class="s-city">${a.name}</span></span>
                 <span class="s-country">${a.country}</span>
               </div>`;
     }).join("");
@@ -835,9 +838,15 @@
       e.preventDefault();
     } else if (e.key === "Enter") {
       e.preventDefault();
+      // Round over? Enter rolls a fresh puzzle of the same type. Daily is
+      // locked to one per day, so it's a no-op there.
+      if (finished) {
+        if (mode !== "daily") setMode(mode);
+        return;
+      }
       if (e.shiftKey) {
         // Shift+Enter — submit the row without trying to add another stop.
-        if (!finished && !submitBtn.disabled) submitRow();
+        if (!submitBtn.disabled) submitRow();
         return;
       }
       if (visible && suggestIndex >= 0 && items[suggestIndex]) {
@@ -884,10 +893,17 @@
   // Global keyboard shortcuts:
   //   Shift+Backspace  — clear the current row
   //   Shift+Enter      — submit the current row
+  //   Enter (round over) — start a new puzzle of the same type
   // (When the input is focused, its own keydown handler already manages
-  // Shift+Enter, so we skip here to avoid a double-submit.)
+  // Enter / Shift+Enter, so we skip here to avoid double-firing.)
   document.addEventListener("keydown", (e) => {
-    if (finished) return;
+    if (finished) {
+      if (e.key === "Enter" && !e.shiftKey && e.target !== input) {
+        e.preventDefault();
+        if (mode !== "daily") setMode(mode);
+      }
+      return;
+    }
     if (e.shiftKey && e.key === "Backspace") {
       clearCurrentRow();
     } else if (e.shiftKey && e.key === "Enter" && e.target !== input) {
@@ -901,6 +917,14 @@
   // If the puzzle has no stars field (legacy data), the badge is hidden.
   function renderDifficulty() {
     if (!difficultyEl) return;
+    // In Cryptic mode the player gets no place-name hints, so the difficulty
+    // tier is hidden too — every puzzle reads as five question marks.
+    if (mode === "cryptic") {
+      let html = `<span class="label">Cryptic</span>`;
+      for (let i = 0; i < 5; i++) html += `<span class="star-on">?</span>`;
+      difficultyEl.innerHTML = html;
+      return;
+    }
     const stars = puzzle && puzzle.stars;
     if (!stars) { difficultyEl.innerHTML = ""; return; }
     const tierLabel = ["", "Simple", "Easy", "Medium", "Hard", "Extreme"][stars];

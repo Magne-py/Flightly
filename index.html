@@ -90,9 +90,11 @@
 
   /* ---------- Cryptic mode ---------- */
   /* In Cryptic, only IATA codes are exposed. Hide every city/country/name
-     surface plus the entire flight map, and let the left column take the
-     full width of the layout. */
+     surface plus the entire flight map. With no map, the layout collapses
+     to a single column — narrow it so the grid doesn't sprawl across the
+     screen and the give-up button stays visibly centered under the grid. */
   body.cryptic-mode .right-col { display: none; }
+  body.cryptic-mode .layout { max-width: 600px; }
   body.cryptic-mode .endpoint .city,
   body.cryptic-mode .cell .city,
   body.cryptic-mode .suggestion .s-city,
@@ -186,10 +188,16 @@
   .suggestions.active { display: block; }
   .suggestion {
     padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between;
+    align-items: center; gap: 10px;
     border-bottom: 1px solid var(--border); font-size: 14px;
   }
   .suggestion:last-child { border-bottom: 0; }
   .suggestion:hover, .suggestion.highlighted { background: var(--bg-alt); }
+  .suggestion > span:first-child {
+    min-width: 0; flex: 1 1 auto;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .suggestion > span:last-child { flex: 0 0 auto; }
   .suggestion .s-code { font-weight: 700; color: var(--accent); }
   .suggestion .s-city { color: var(--muted); margin-left: 8px; }
   .suggestion .s-country { color: var(--muted); font-size: 12px; }
@@ -205,19 +213,19 @@
     width: 100%; max-width: 720px; text-align: center; margin-top: 6px;
   }
   .give-up-btn {
-    background: transparent; color: var(--muted);
-    border: 1px solid transparent; padding: 5px 12px;
+    background: var(--bg-alt); color: var(--red);
+    border: 1px solid var(--border); padding: 5px 12px;
     border-radius: 6px; font-size: 12px; cursor: pointer;
     transition: color 0.12s, border-color 0.12s, background 0.12s;
   }
   .give-up-btn:hover {
-    color: var(--red); border-color: var(--border); background: var(--bg-alt);
+    color: var(--red); border-color: var(--red); background: var(--bg-alt);
   }
   .give-up-btn:disabled {
     opacity: 0.35; cursor: not-allowed;
   }
   .give-up-btn:disabled:hover {
-    color: var(--muted); border-color: transparent; background: transparent;
+    border-color: var(--border);
   }
 
   .result-panel {
