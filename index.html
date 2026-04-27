@@ -228,16 +228,55 @@
     border-color: var(--border);
   }
 
+  /* The result panel is an inline card that flows with the page — no
+     overlay, no scrim. It auto-mounts above the grid when a round ends,
+     and re-mounts below the grid when the player taps "View result". JS
+     toggles `display` and re-parents the node between the two slots. */
   .result-panel {
-    width: 100%; max-width: 720px; margin-top: 20px; background: var(--panel);
-    border: 1px solid var(--border); border-radius: 14px; padding: 20px;
-    display: none;
+    width: 100%; max-width: 480px;
+    margin: 14px auto;
+    background: var(--panel);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 18px 14px;
+    position: relative;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
+    animation: result-slide 0.18s ease-out;
   }
-  .result-panel.visible { display: block; }
-  .result-panel h2 { margin: 0 0 8px; font-size: 22px; }
-  .result-stats { display: flex; gap: 24px; color: var(--muted); font-size: 14px; margin: 8px 0 14px; }
-  .result-stats strong { color: var(--text); font-size: 18px; display: block; }
-  .result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  @keyframes result-slide {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .result-close {
+    position: absolute; top: 6px; right: 8px;
+    background: transparent; color: var(--muted);
+    border: 0; font-size: 20px; line-height: 1;
+    cursor: pointer; padding: 2px 8px;
+    border-radius: 6px;
+    transition: color 0.12s, background 0.12s;
+  }
+  .result-close:hover { color: var(--text); background: var(--bg-alt); }
+  .result-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* "View result" button — appears in the give-up row after the round
+     ends so the player can re-open a modal they already dismissed. */
+  .show-result-btn {
+    background: var(--bg-alt); color: var(--accent);
+    border: 1px solid var(--border); padding: 5px 12px;
+    border-radius: 6px; font-size: 12px; cursor: pointer;
+    margin-left: 8px;
+    transition: color 0.12s, border-color 0.12s, background 0.12s;
+  }
+  .show-result-btn:hover { border-color: var(--accent); }
+  .result-panel h2 { margin: 0 0 4px; font-size: 17px; padding-right: 28px; }
+  .result-stats { display: flex; gap: 18px; color: var(--muted); font-size: 12px; margin: 4px 0 10px; }
+  .result-stats strong { color: var(--text); font-size: 15px; display: block; }
+  .result-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .result-actions .btn { padding: 8px 14px; font-size: 13px; }
+  .result-panel .solution-block { margin: 4px 0 10px; }
+  .result-panel .solution-label { font-size: 12px; }
+  .result-panel .solution-route { font-size: 13px; line-height: 1.6; }
+  .result-panel .solution-list { max-height: 200px; }
 
   .solution-block { margin: 6px 0 16px; }
   .solution-label { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
@@ -490,9 +529,11 @@
 
     <div class="give-up-row">
       <button id="give-up-btn" class="give-up-btn" title="Reveal the answer and end the round">Give up &amp; reveal answer</button>
+      <button id="show-result-btn" class="show-result-btn" type="button" style="display:none" title="Re-open the result panel">View result</button>
     </div>
 
-    <div class="result-panel" id="result-panel">
+    <div class="result-panel" id="result-panel" role="region" aria-labelledby="result-heading" style="display:none">
+      <button class="result-close" id="modal-close" type="button" aria-label="Close">&times;</button>
       <h2 id="result-heading"></h2>
       <div class="result-stats" id="result-stats"></div>
       <div class="result-actions">

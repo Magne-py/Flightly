@@ -2,12 +2,14 @@
 score_difficulty.py — Add a difficulty score and 1–5 star rating to every
 puzzle in data/puzzles.json (and the matching .js).
 
-Difficulty model: three signals computed off the BFS+DP analysis we already
-do at runtime in shortestRoutes(start, dest), plus the puzzle's hop count.
+Difficulty model: signals computed off the BFS+DP analysis we already do at
+runtime in shortestRoutes(start, dest), plus the puzzle's hop count and the
+endpoint airports' own fame.
 
   raw = α · (hops - 1)
       − β · log(1 + count)            // many shortest routes → easier
       − γ · max_route_fame            // a famous route exists → easier
+      − ε · endpoint_fame             // famous start/dest → easier
       + δ · slot_tightness            // tight per-slot choices → harder
 
 Where:
@@ -16,6 +18,11 @@ Where:
                      log(1+degree) of the route's INTERMEDIATE airports
                      — i.e. "the most-recognizable shortest path the player
                      could plausibly find."
+  endpoint_fame    = average of log(1+degree) for the start AND dest
+                     airports themselves. Captures recognizability of the
+                     puzzle's two named endpoints — Paris↔Moscow lands
+                     way higher than two obscure regional airports do, so
+                     famous-endpoint puzzles are pushed toward easier stars.
   slot_tightness   = 1 / geo_mean(distinct airports per intermediate slot)
                      across enumerated shortest routes.
 
@@ -33,10 +40,11 @@ DATA = ROOT / "data"
 # Weights — picked so that hops, fame, and tightness contribute on a similar
 # magnitude to the raw score. Tweak only if the resulting star distribution
 # looks visibly off.
-ALPHA = 2.0   # per extra stop
-BETA  = 0.7   # log dampener for route count
-GAMMA = 0.9   # weight on max-fame across routes (subtracts difficulty)
-DELTA = 4.0   # weight on slot tightness (adds difficulty)
+ALPHA   = 2.0   # per extra stop
+BETA    = 0.5   # log dampener for route count (shortest-path multiplicity)
+GAMMA   = 1.0   # weight on max-fame across intermediate airports (easier)
+EPSILON = 1.6   # weight on endpoint fame — the Paris/Moscow factor (easier)
+DELTA   = 4.0   # weight on slot tightness (harder)
 
 # Cap on enumeration. We only need enumerate enough routes to capture slot
 # diversity and the most-famous route; ~500 is plenty for any real puzzle.
@@ -102,8 +110,18 @@ def difficulty_features(puzzle, routes_adj):
     hops = puzzle["shortest_hops"]
     count, routes = shortest_routes(start, dest, routes_adj)
 
+    # Endpoint fame is independent of route enumeration — even a 0-route
+    # puzzle (shouldn't happen, but be defensive) has an endpoint signal.
+    endpoint_fame = (
+        math.log(1 + len(routes_adj.get(start, [])))
+        + math.log(1 + len(routes_adj.get(dest, [])))
+    ) / 2.0
+
     if count == 0:
-        return {"raw": 0.0, "count": 0, "max_fame": 0.0, "tightness": 0.0}
+        return {
+            "raw": 0.0, "count": 0, "max_fame": 0.0,
+            "endpoint_fame": endpoint_fame, "tightness": 0.0,
+        }
 
     # Direct flight — trivial; pin to the easiest end of the scale.
     if hops <= 1:
@@ -111,6 +129,7 @@ def difficulty_features(puzzle, routes_adj):
             "raw": -10.0,
             "count": count,
             "max_fame": 0.0,
+            "endpoint_fame": endpoint_fame,
             "tightness": 0.0,
         }
 
@@ -139,18 +158,22 @@ def difficulty_features(puzzle, routes_adj):
     else:
         tightness = 0.0
 
-    # 3) Combine.
+    # 3) Combine. Endpoint fame is the lever the user asked for — when both
+    # start and dest are well-connected hubs (Paris, Moscow, JFK…) the
+    # puzzle drops a tier even if its alt-count and tightness look obscure.
     raw = (
-        ALPHA * (hops - 1)
-        - BETA * math.log(1 + count)
-        - GAMMA * max_fame
-        + DELTA * tightness
+        ALPHA   * (hops - 1)
+        - BETA    * math.log(1 + count)
+        - GAMMA   * max_fame
+        - EPSILON * endpoint_fame
+        + DELTA   * tightness
     )
 
     return {
         "raw": raw,
         "count": count,
         "max_fame": max_fame,
+        "endpoint_fame": endpoint_fame,
         "tightness": tightness,
     }
 
@@ -211,14 +234,18 @@ def main():
     # Sanity: print a couple from each tier.
     print("\nSamples from each tier:")
     by_tier = defaultdict(list)
+    feat_by_pair = {(p["start"], p["dest"]): f for p, f in zip(puzzles, feats)}
     for p in puzzles:
         by_tier[p["stars"]].append(p)
     for s in sorted(by_tier):
         sample = by_tier[s][:3]
         for p in sample:
+            f = feat_by_pair[(p["start"], p["dest"])]
             print(f"  {s}★  {p['start']}→{p['dest']}  "
                   f"hops={p['shortest_hops']}  "
-                  f"alt={p['alt_count']}  raw={p['difficulty']}")
+                  f"alt={p['alt_count']}  "
+                  f"endpt_fame={f['endpoint_fame']:.2f}  "
+                  f"raw={p['difficulty']}")
 
     # Persist annotated copies — overwrite both .json and .js.
     (DATA / "puzzles.json").write_text(json.dumps(puzzles))

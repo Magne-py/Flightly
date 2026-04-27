@@ -89,6 +89,10 @@
   const resultStats = $("result-stats");
   const shareBtn = $("share-btn");
   const newPuzzleBtn = $("new-puzzle-btn");
+  const modalCloseBtn = $("modal-close");
+  const showResultBtn = $("show-result-btn");
+  const leftCol = document.querySelector(".left-col");
+  const inputRow = document.querySelector(".input-row");
   const modeButtons = {
     daily:           $("mode-daily"),
     random:          $("mode-random"),
@@ -446,13 +450,46 @@
     return { path, matches: destBest.matches };
   }
 
+  // ---------- Result panel helpers ----------
+  // The result panel is an inline card (no overlay, no scrim) that gets
+  // mounted into the page flow at one of two positions:
+  //   • "top"    — between the puzzle header and the input row, where it
+  //                appears automatically when a round ends.
+  //   • "bottom" — at the very bottom of the left column, where it appears
+  //                when the player taps "View result" below the grid.
+  // The CSS animation re-fires on each show because the node is moved.
+  function showResultPanelAt(position) {
+    if (!resultPanel || !leftCol) return;
+    if (position === "top" && inputRow) {
+      leftCol.insertBefore(resultPanel, inputRow);
+    } else {
+      // "bottom" — append to end of the left column.
+      leftCol.appendChild(resultPanel);
+    }
+    // Reset the slide-in animation so it runs every time we re-show.
+    resultPanel.style.display = "none";
+    // Force reflow so the next display change re-triggers the keyframes.
+    void resultPanel.offsetWidth;
+    resultPanel.style.display = "block";
+    if (showResultBtn) showResultBtn.style.display = "none";
+  }
+  function hideResultPanel() {
+    if (!resultPanel) return;
+    resultPanel.style.display = "none";
+    // If the round is over, surface the "View result" button so the player
+    // can re-open the panel they just dismissed.
+    if (finished && showResultBtn) showResultBtn.style.display = "inline-block";
+  }
+
   // ---------- Game flow ----------
   function startPuzzle() {
     attempts = [];
     currentRow = [];
     finished = false;
     won = false;
-    resultPanel.classList.remove("visible");
+    if (resultPanel) resultPanel.style.display = "none";
+    if (showResultBtn) showResultBtn.style.display = "none";
+    if (giveUpBtn) giveUpBtn.style.display = "";
 
     $("start-code").textContent = puzzle.start;
     $("start-city").textContent = AIRPORTS[puzzle.start].city;
@@ -579,7 +616,12 @@
   }
 
   function showResult(winFlag, stopsUsed, attemptsUsed, gaveUp) {
-    resultPanel.classList.add("visible");
+    // First show always lands above the grid — score & shortest-route
+    // reveal sit on top of the player's colored cells.
+    showResultPanelAt("top");
+    // Hide the give-up button — the round is done. The "View result"
+    // button takes its place once the panel is dismissed.
+    if (giveUpBtn) giveUpBtn.style.display = "none";
     if (winFlag) {
       const pts = score(stopsUsed, attemptsUsed);
       const matched = stopsUsed === (puzzle.shortest_hops - 1);
@@ -605,13 +647,16 @@
     addBtn.disabled = true;
     undoBtn.disabled = true;
     if (giveUpBtn) giveUpBtn.disabled = true;
-    // Daily is locked to one puzzle per day; every difficulty mode lets the
-    // player roll a fresh puzzle in the same tier.
+    // Daily is locked to one puzzle per day, but the player still wants
+    // somewhere to go after they've solved it — offer to roll into Random.
+    // Every other mode rolls a fresh puzzle from the same pool.
+    newPuzzleBtn.style.display = "inline-block";
     if (mode === "daily") {
-      newPuzzleBtn.style.display = "none";
+      newPuzzleBtn.textContent = "Play Random ↵";
+      newPuzzleBtn.title = "Or press Enter to start a Random puzzle";
     } else {
-      newPuzzleBtn.style.display = "inline-block";
-      newPuzzleBtn.textContent = `New ${MODE_LABELS[mode]} puzzle`;
+      newPuzzleBtn.textContent = `New ${MODE_LABELS[mode]} puzzle ↵`;
+      newPuzzleBtn.title = "Or press Enter to roll a fresh puzzle";
     }
   }
 
@@ -813,10 +858,11 @@
   });
 
   newPuzzleBtn.addEventListener("click", () => {
-    if (mode === "daily") return; // Daily has only one puzzle per day.
-    // Re-running setMode handles all the puzzle-pickers + graph swap, so
-    // continent modes correctly draw from their own pool.
-    setMode(mode);
+    // Daily is locked to one puzzle per day, so the button rolls into
+    // Random instead. Every other mode just rolls a fresh puzzle from the
+    // same pool; setMode handles puzzle-pickers + graph swap for us.
+    if (mode === "daily") setMode("random");
+    else setMode(mode);
   });
 
   // ---------- Input handling ----------
@@ -838,10 +884,11 @@
       e.preventDefault();
     } else if (e.key === "Enter") {
       e.preventDefault();
-      // Round over? Enter rolls a fresh puzzle of the same type. Daily is
-      // locked to one per day, so it's a no-op there.
+      // Round over? Enter rolls a fresh puzzle. For Daily — which is
+      // locked to one puzzle per day — Enter sends the player into Random
+      // instead, matching the "Play Random" button.
       if (finished) {
-        if (mode !== "daily") setMode(mode);
+        setMode(mode === "daily" ? "random" : mode);
         return;
       }
       if (e.shiftKey) {
@@ -890,6 +937,13 @@
   submitBtn.addEventListener("click", submitRow);
   if (giveUpBtn) giveUpBtn.addEventListener("click", giveUp);
 
+  // ---------- Result panel — close & re-open ----------
+  // Corner × always dismisses the panel.
+  if (modalCloseBtn) modalCloseBtn.addEventListener("click", hideResultPanel);
+  // "View result" mounts the panel BELOW the grid (per design — the user
+  // expects the re-opened panel to flow out from where the button sits).
+  if (showResultBtn) showResultBtn.addEventListener("click", () => showResultPanelAt("bottom"));
+
   // Global keyboard shortcuts:
   //   Shift+Backspace  — clear the current row
   //   Shift+Enter      — submit the current row
@@ -897,10 +951,17 @@
   // (When the input is focused, its own keydown handler already manages
   // Enter / Shift+Enter, so we skip here to avoid double-firing.)
   document.addEventListener("keydown", (e) => {
+    // ESC dismisses the result panel if it's currently visible.
+    if (e.key === "Escape" && resultPanel && resultPanel.style.display === "block") {
+      e.preventDefault();
+      hideResultPanel();
+      return;
+    }
     if (finished) {
       if (e.key === "Enter" && !e.shiftKey && e.target !== input) {
         e.preventDefault();
-        if (mode !== "daily") setMode(mode);
+        // Daily is locked to one per day → Enter rolls into Random.
+        setMode(mode === "daily" ? "random" : mode);
       }
       return;
     }
