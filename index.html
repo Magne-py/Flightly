@@ -503,6 +503,19 @@
     </div>
   </div>
 
+  <div class="mode-dropdown group-end" id="dropdown-layovers">
+    <button class="mode-trigger" id="trigger-layovers" type="button"
+            aria-haspopup="true" aria-expanded="false">
+      By Layovers<span class="caret">&#9662;</span>
+    </button>
+    <div class="mode-menu" role="menu" aria-labelledby="trigger-layovers">
+      <button id="mode-layover-1" data-layovers="1" role="menuitem" title="Routes whose shortest path is exactly 1 layover">1 layover</button>
+      <button id="mode-layover-2" data-layovers="2" role="menuitem" title="Routes whose shortest path is exactly 2 layovers">2 layovers</button>
+      <button id="mode-layover-3" data-layovers="3" role="menuitem" title="Routes whose shortest path is exactly 3 layovers">3 layovers</button>
+      <button id="mode-layover-4" data-layovers="4" role="menuitem" title="Routes whose shortest path is exactly 4 layovers">4 layovers</button>
+    </div>
+  </div>
+
   <button id="mode-cryptic" title="Random puzzle, no map, IATA codes only — pure pathfinding">Cryptic</button>
 </div>
 

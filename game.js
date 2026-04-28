@@ -15,8 +15,9 @@
   const SLOTS = 5; // intermediate airport slots per attempt
 
   // ---------- State ----------
-  // Mode names: 'daily', 'random', 'simple'..'extreme', or a continent slug
-  // ('africa', 'europe', 'north-america', 'south-america', 'asia', 'oceania').
+  // Mode names: 'daily', 'random', 'simple'..'extreme', a continent slug
+  // ('africa', 'europe', 'north-america', 'south-america', 'asia', 'oceania'),
+  // or a layover slug ('layover-1'..'layover-4').
   let mode = "daily";
   let puzzle = null; // {start, dest, shortest_hops, stars, id}
 
@@ -47,6 +48,15 @@
     "asia":           "Asia",
     "oceania":        "Oceania",
   };
+  // Slug → required layover count (= shortest_hops - 1, since hops is the
+  // edge count and layovers are the intermediate airports between start
+  // and dest). null means "any" / not a layover-pinned mode.
+  const MODE_LAYOVERS = {
+    "layover-1": 1,
+    "layover-2": 2,
+    "layover-3": 3,
+    "layover-4": 4,
+  };
   const MODE_LABELS = {
     daily: "Daily",
     random: "Random",
@@ -61,6 +71,10 @@
     "south-america":  "South America",
     "asia":           "Asia",
     "oceania":        "Oceania",
+    "layover-1":      "1 layover",
+    "layover-2":      "2 layovers",
+    "layover-3":      "3 layovers",
+    "layover-4":      "4 layovers",
     cryptic: "Cryptic",
   };
   let attempts = []; // [[{code, color}, ...], ...]
@@ -107,6 +121,10 @@
     "south-america": $("mode-south-america"),
     "asia":          $("mode-asia"),
     "oceania":       $("mode-oceania"),
+    "layover-1":     $("mode-layover-1"),
+    "layover-2":     $("mode-layover-2"),
+    "layover-3":     $("mode-layover-3"),
+    "layover-4":     $("mode-layover-4"),
     cryptic:         $("mode-cryptic"),
   };
   const difficultyEl = $("puzzle-difficulty");
@@ -129,11 +147,19 @@
   // Pre-bucket puzzles by their star rating so mode-pick is O(1).
   // Falls back gracefully if older puzzles.json without `stars` is loaded.
   const PUZZLES_BY_STARS = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+  // Pre-bucket puzzles by layover count. Layovers = shortest_hops - 1 (hops
+  // counts edges; layovers count the intermediate airports). Build pool data
+  // is bounded to 2..5 hops, so the layover keys 1..4 cover everything.
+  const PUZZLES_BY_LAYOVERS = { 1: [], 2: [], 3: [], 4: [] };
   for (let i = 0; i < PUZZLES.length; i++) {
     const p = PUZZLES[i];
     const s = p.stars;
     if (s >= 1 && s <= 5) {
       PUZZLES_BY_STARS[s].push(i);
+    }
+    const lay = (p.shortest_hops || 0) - 1;
+    if (lay >= 1 && lay <= 4) {
+      PUZZLES_BY_LAYOVERS[lay].push(i);
     }
   }
 
@@ -152,6 +178,19 @@
     const indices = pool.length ? pool : PUZZLES.map((_, i) => i);
     const idx = indices[Math.floor(Math.random() * indices.length)];
     const label = MODE_LABELS[mode] || "Practice";
+    return Object.assign(
+      { id: `${label} #${idx + 1}` },
+      PUZZLES[idx]
+    );
+  }
+
+  // Pick a random puzzle from the layover bucket. Falls back to the global
+  // pool if the bucket is empty (shouldn't happen with current data).
+  function randomPuzzleByLayovers(layovers) {
+    const pool = PUZZLES_BY_LAYOVERS[layovers] || [];
+    const indices = pool.length ? pool : PUZZLES.map((_, i) => i);
+    const idx = indices[Math.floor(Math.random() * indices.length)];
+    const label = MODE_LABELS[mode] || `${layovers} layover${layovers === 1 ? "" : "s"}`;
     return Object.assign(
       { id: `${label} #${idx + 1}` },
       PUZZLES[idx]
@@ -1026,10 +1065,13 @@
     // collapsed dropdown still reads as "selected" at a glance).
     const isDifficulty = MODE_STARS[m] != null;
     const isContinent  = !!MODE_CONTINENT[m];
+    const isLayovers   = MODE_LAYOVERS[m] != null;
     const ddDiff = document.getElementById("dropdown-difficulty");
     const ddCont = document.getElementById("dropdown-continent");
+    const ddLay  = document.getElementById("dropdown-layovers");
     if (ddDiff) ddDiff.classList.toggle("has-active", isDifficulty);
     if (ddCont) ddCont.classList.toggle("has-active", isContinent);
+    if (ddLay)  ddLay.classList.toggle("has-active", isLayovers);
     applyModeGraph(m);
 
     // Cryptic strips every place-name surface from the UI. Toggle the body
@@ -1047,6 +1089,8 @@
       if (next) next.id = `Cryptic #${next.id.split("#")[1] || ""}`.trim();
     } else if (MODE_CONTINENT[m]) {
       next = randomContinentPuzzle(MODE_CONTINENT[m]);
+    } else if (MODE_LAYOVERS[m] != null) {
+      next = randomPuzzleByLayovers(MODE_LAYOVERS[m]);
     } else {
       next = randomPuzzleByStars(MODE_STARS[m]);
     }
