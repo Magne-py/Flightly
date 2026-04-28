@@ -36,6 +36,7 @@
     draft: [],      // [iata, ...]
     history: [],    // [{row: [{code, color}, ...]}]
     solution: [],   // [iata, ...] — full shortest route to highlight after round ends
+    hub: null,      // { center: iata, neighbors: [iata, ...] } — Learn-page mode
   };
 
   function clampZoom(z) { return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z)); }
@@ -142,6 +143,9 @@
     // Solution overlay arcs (only after round ends — accent-colored)
     drawSolutionArcs();
 
+    // Hub arcs (Learn page — every neighbor of the selected airport)
+    drawHubArcs();
+
     // Draft arcs (dashed blue)
     drawDraftArcs();
 
@@ -159,11 +163,49 @@
         if (airportsRef[code]) drawMarker(code, "solution");
       }
     }
+    // Hub markers — center is the green "start" marker, neighbors are
+    // unlabelled accent dots (labelling every neighbor swamps the globe;
+    // hover highlight from the table handles individual call-outs).
+    if (state.hub && state.hub.center && airportsRef[state.hub.center]) {
+      drawMarker(state.hub.center, "start");
+      for (const nb of state.hub.neighbors) {
+        if (!airportsRef[nb]) continue;
+        drawHubNeighborDot(nb);
+      }
+    }
     // Draft waypoints
     for (let i = 0; i < state.draft.length; i++) {
       const code = state.draft[i];
       if (airportsRef[code]) drawMarker(code, "draft", i + 1);
     }
+  }
+
+  function drawHubArcs() {
+    if (!state.hub || !state.hub.center) return;
+    const center = state.hub.center;
+    const C = airportsRef[center];
+    if (!C) return;
+    for (const nb of state.hub.neighbors) {
+      const N = airportsRef[nb];
+      if (!N) continue;
+      const samples = greatCircleSamples(C.lat, C.lon, N.lat, N.lon);
+      const segs = pathSegments(samples);
+      for (const seg of segs) {
+        svg.appendChild(el("polyline", {
+          class: "leg-line hub", points: seg.join(" "),
+        }));
+      }
+    }
+  }
+
+  function drawHubNeighborDot(code) {
+    const a = airportsRef[code];
+    if (!a) return;
+    const p = project(a.lat, a.lon);
+    if (!p.visible) return;
+    svg.appendChild(el("circle", {
+      class: "marker-hub", cx: p.x, cy: p.y, r: 3.2,
+    }));
   }
 
   function drawSolutionArcs() {
@@ -507,10 +549,36 @@
     state.draft = [];
     state.history = [];
     state.solution = [];
+    state.hub = null;
     // Reset zoom so a new puzzle always starts framed sensibly.
     applyZoom(1.0);
     const A = airportsRef[startIata], B = airportsRef[destIata];
     centerMidpoint(A, B);
+    render();
+  }
+
+  // Learn-page mode. Clears all puzzle state, recenters on the hub
+  // airport, and draws great-circle arcs to every neighbor.
+  function setHub(centerIata, neighborIatas) {
+    state.start = null;
+    state.dest = null;
+    state.draft = [];
+    state.history = [];
+    state.solution = [];
+    state.hub = {
+      center: centerIata || null,
+      neighbors: (neighborIatas || []).slice(),
+    };
+    if (centerIata && airportsRef[centerIata]) {
+      const A = airportsRef[centerIata];
+      centerOn(A.lat, A.lon);
+    }
+    applyZoom(1.0);
+    render();
+  }
+
+  function clearHub() {
+    state.hub = null;
     render();
   }
 
@@ -553,13 +621,14 @@
   }
 
   function reset() {
-    state = { start: null, dest: null, draft: [], history: [], solution: [] };
+    state = { start: null, dest: null, draft: [], history: [], solution: [], hub: null };
     applyZoom(1.0);
     render();
   }
 
   window.JetSetsGlobe = {
     init, setPuzzle, setDraft, setHistory, setSolution, setCoastlines,
+    setHub, clearHub,
     setZoom, zoomBy, resetView, reset,
   };
 })();

@@ -81,6 +81,10 @@
   let currentRow = []; // draft row of airport codes
   let finished = false;
   let won = false;
+  // Last solution route drawn on the globe — cached so we can re-apply it
+  // after the user visits the Learn page (which temporarily takes over the
+  // globe with hub arcs) and returns to the game view.
+  let lastSolutionRoute = null;
   // Cached BFS distance map from destination: { iata: minHopsToDest }
   let distToDest = null;
   // Set of airports on at least one shortest start→dest path
@@ -525,6 +529,7 @@
     attempts = [];
     currentRow = [];
     finished = false;
+    lastSolutionRoute = null;
     won = false;
     if (resultPanel) resultPanel.style.display = "none";
     if (showResultBtn) showResultBtn.style.display = "none";
@@ -760,6 +765,7 @@
     if (window.JetSetsGlobe) {
       JetSetsGlobe.setSolution(routes[0]);
     }
+    lastSolutionRoute = routes[0].slice();
     if (count > 1) {
       const link = document.getElementById("solution-count");
       const list = document.getElementById("solution-list");
@@ -1169,4 +1175,22 @@
   }
 
   setMode("daily");
+
+  // ---------- External hooks ----------
+  // app.js (the View router) takes the globe over for the Learn page. When
+  // the user returns to the game view we need to put the globe back into
+  // the right state — this helper re-applies puzzle + history + draft (and
+  // the post-round solution if one was rendered).
+  window.JetSets = {
+    refreshGlobe() {
+      if (!window.JetSetsGlobe || !puzzle) return;
+      JetSetsGlobe.setPuzzle(puzzle.start, puzzle.dest);
+      JetSetsGlobe.setHistory(attempts);
+      JetSetsGlobe.setDraft(currentRow);
+      if (lastSolutionRoute) JetSetsGlobe.setSolution(lastSolutionRoute);
+    },
+    // Restart the daily puzzle. Used by the title-link click when the user
+    // is already on the game view but we still want a clean reset.
+    goDaily() { setMode("daily"); },
+  };
 })();
