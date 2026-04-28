@@ -753,11 +753,16 @@
       ? `<a class="solution-count" id="solution-count" href="#"
             title="Click to see all ${count} shortest routes">(${count})</a>`
       : `<span class="solution-count solo">(1)</span>`;
-    // Primary route shares a row with its label — "Shortest 2-stop route (3): JFK → LAX".
+    // Slot counts: how many distinct airports are valid at each intermediate
+    // slot across shortest routes — annotated next to each leg of the
+    // primary solution so the player can spot which slot was the hardest
+    // (small count = bottleneck leg).
+    const slotCounts = (shortestPathBySlot || []).map((s) => s.size);
+    // Primary route shares a row with its label — "Shortest 2-stop route (3): JFK (3) → LAX (14)".
     block.innerHTML =
       `<div class="solution-row">
          <span class="solution-label">Shortest ${stopsLabel} ${counterHtml}:</span>
-         <span class="solution-route" id="solution-primary">${fmtRoute(routes[0])}</span>
+         <span class="solution-route" id="solution-primary">${fmtRoute(routes[0], slotCounts)}</span>
        </div>
        <div class="solution-list" id="solution-list" style="display:none"></div>`;
     // Highlight the chosen primary shortest route on the globe so the player
@@ -869,12 +874,23 @@
   // Render the route as ONLY its intermediate stops (the airports that go in
   // the grid). The start and destination are already shown in the puzzle
   // header, so showing them again here would be redundant.
-  function fmtRoute(route) {
+  // `slotCounts` (optional) is an array of "number of distinct airports
+  // valid at slot k across all enumerated shortest routes" — when present,
+  // we annotate each intermediate with `(N)` so the player can see which
+  // leg is the hardest one to guess (smallest N).
+  function fmtRoute(route, slotCounts) {
     const intermediates = route.slice(1, -1);
     if (intermediates.length === 0) {
       return `<span class="sol-direct">Direct flight — no intermediate stops.</span>`;
     }
-    return intermediates.map(fmtAirportToggle).join(' <span class="sol-arrow">→</span> ');
+    return intermediates.map((code, i) => {
+      const html = fmtAirportToggle(code);
+      const n = slotCounts && slotCounts[i];
+      if (n != null) {
+        return html + ` <span class="sol-slot-count" title="${n} airport${n === 1 ? "" : "s"} can fill this slot on a shortest route">(${n})</span>`;
+      }
+      return html;
+    }).join(' <span class="sol-arrow">→</span> ');
   }
 
   // ---------- Share ----------

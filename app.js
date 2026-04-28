@@ -160,8 +160,6 @@
   const learnInput        = document.getElementById("learn-input");
   const learnSuggestions  = document.getElementById("learn-suggestions");
   const learnInfo         = document.getElementById("learn-info");
-  const connectionsTbody  = document.getElementById("connections-tbody");
-  const connectionsCount  = document.getElementById("connections-count");
 
   // Cache of all airport codes for the autocomplete.
   const ALL_CODES = Object.keys(window.AIRPORTS || {});
@@ -230,8 +228,7 @@
     if (window.JetSetsGlobe) {
       window.JetSetsGlobe.setHub(code, neighbors);
     }
-    renderHubInfo(code, neighbors);
-    renderConnectionsTable(code, neighbors);
+    renderHubPanel(code, neighbors);
   }
 
   function selectLearnAirport(code) {
@@ -248,7 +245,9 @@
     }
   }
 
-  function renderHubInfo(code, neighbors) {
+  // Renders the hub title, meta line, and compact connections table all
+  // INSIDE .learn-info — a single right-hand panel beside the map.
+  function renderHubPanel(code, neighbors) {
     if (!learnInfo) return;
     const A = window.AIRPORTS;
     const a = A[code];
@@ -265,6 +264,26 @@
     const tierLabel = a.tier === 1 ? "Tier 1 mega-hub"
                     : a.tier === 2 ? "Tier 2 major"
                     : "Tier 3";
+
+    // Sort connections by tier then city — top hubs first.
+    const rows = neighbors.slice().sort((x, y) => {
+      const ax = A[x] || {}, ay = A[y] || {};
+      const tx = ax.tier || 9, ty = ay.tier || 9;
+      if (tx !== ty) return tx - ty;
+      return (ax.city || x).localeCompare(ay.city || y);
+    });
+
+    const tableRows = rows.length
+      ? rows.map((c) => {
+          const x = A[c] || {};
+          const label = x.name || x.city || c;
+          return `<tr data-code="${c}">
+            <td class="col-code">${c}</td>
+            <td>${label}</td>
+          </tr>`;
+        }).join("")
+      : `<tr><td colspan="2" class="empty">No connections found for ${code}.</td></tr>`;
+
     learnInfo.innerHTML = `
       <h3 class="hub-name">${code} — ${a.name || a.city || ""}</h3>
       <p class="hub-place">${a.city || ""}${a.country ? ", " + a.country : ""}</p>
@@ -273,39 +292,55 @@
         <span><strong>${continents.size}</strong>continent${continents.size === 1 ? "" : "s"} reached</span>
         <span><strong>${tierLabel}</strong></span>
       </div>
+      <div class="connections">
+        <div class="connections-head">
+          <span>Connecting flights</span>
+          <span class="count">${neighbors.length} airport${neighbors.length === 1 ? "" : "s"}</span>
+        </div>
+        <div class="connections-body">
+          <table class="connections-list">
+            <thead><tr><th class="col-code">Code</th><th>Airport</th></tr></thead>
+            <tbody id="connections-tbody">${tableRows}</tbody>
+          </table>
+        </div>
+      </div>
     `;
+
+    // Row click → highlight the corresponding dot on the globe (and label
+    // it). Mirrors clicking the dot on the map directly.
+    const tbody = learnInfo.querySelector("#connections-tbody");
+    if (tbody) {
+      tbody.addEventListener("click", (e) => {
+        const tr = e.target.closest("tr[data-code]");
+        if (!tr) return;
+        const c = tr.getAttribute("data-code");
+        if (!c || !window.JetSetsGlobe) return;
+        // Toggle highlight on the row + on the globe marker.
+        tbody.querySelectorAll("tr.selected").forEach((el) => {
+          if (el !== tr) el.classList.remove("selected");
+        });
+        const willSelect = !tr.classList.contains("selected");
+        tr.classList.toggle("selected", willSelect);
+        window.JetSetsGlobe.selectHubNeighbor(willSelect ? c : null);
+      });
+    }
   }
 
-  function renderConnectionsTable(code, neighbors) {
-    if (!connectionsTbody) return;
-    const A = window.AIRPORTS;
-    if (!neighbors.length) {
-      connectionsTbody.innerHTML = `<tr><td colspan="5" class="empty">No connections found for ${code}.</td></tr>`;
-      if (connectionsCount) connectionsCount.textContent = "";
-      return;
+  // Sync table row highlight when the user clicks a dot on the map.
+  document.addEventListener("hub-neighbor-select", (e) => {
+    const code = e.detail && e.detail.code;
+    const tbody = document.getElementById("connections-tbody");
+    if (!tbody) return;
+    tbody.querySelectorAll("tr.selected").forEach((el) => el.classList.remove("selected"));
+    if (code) {
+      const tr = tbody.querySelector(`tr[data-code="${code}"]`);
+      if (tr) {
+        tr.classList.add("selected");
+        // Scroll the selected row into view inside the connections list.
+        try { tr.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {}
+      }
     }
-    // Sort by tier (1→3) then city alphabetically — top hubs surface first.
-    const rows = neighbors.slice().sort((x, y) => {
-      const ax = A[x] || {}, ay = A[y] || {};
-      const tx = ax.tier || 9, ty = ay.tier || 9;
-      if (tx !== ty) return tx - ty;
-      return (ax.city || x).localeCompare(ay.city || y);
-    });
-    connectionsTbody.innerHTML = rows.map((c) => {
-      const a = A[c] || {};
-      const tier = a.tier ? `T${a.tier}` : "";
-      return `<tr>
-        <td class="col-code">${c}</td>
-        <td>${a.name || ""}</td>
-        <td>${a.city || ""}</td>
-        <td>${a.country || ""}</td>
-        <td class="col-tier">${tier}</td>
-      </tr>`;
-    }).join("");
-    if (connectionsCount) {
-      connectionsCount.textContent = `${neighbors.length} airport${neighbors.length === 1 ? "" : "s"}`;
-    }
-  }
+  });
 
   // Wire the search input
   if (learnInput) {

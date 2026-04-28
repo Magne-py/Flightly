@@ -164,13 +164,19 @@
       }
     }
     // Hub markers — center is the green "start" marker, neighbors are
-    // unlabelled accent dots (labelling every neighbor swamps the globe;
-    // hover highlight from the table handles individual call-outs).
+    // small accent dots. The selected neighbor (if any) gets a full
+    // labelled marker so the user can read its name on click.
     if (state.hub && state.hub.center && airportsRef[state.hub.center]) {
       drawMarker(state.hub.center, "start");
       for (const nb of state.hub.neighbors) {
         if (!airportsRef[nb]) continue;
+        if (nb === state.hub.selectedNeighbor) continue; // drawn below
         drawHubNeighborDot(nb);
+      }
+      // Render the selected neighbor last so its label sits on top of arcs.
+      const sel = state.hub.selectedNeighbor;
+      if (sel && airportsRef[sel]) {
+        drawMarker(sel, "solution");
       }
     }
     // Draft waypoints
@@ -203,8 +209,35 @@
     if (!a) return;
     const p = project(a.lat, a.lon);
     if (!p.visible) return;
+    // Slightly larger hit target with a transparent halo so taps on small
+    // dots are forgiving without making the dot itself look bigger.
+    const halo = el("circle", {
+      class: "marker-hub-hit",
+      cx: p.x, cy: p.y, r: 8,
+      fill: "transparent",
+      style: "cursor: pointer;",
+    });
+    halo.setAttribute("data-iata", code);
+    halo.addEventListener("click", (e) => {
+      e.stopPropagation();
+      // Toggle selection — clicking the same dot again hides the label.
+      if (state.hub) {
+        const newSel = state.hub.selectedNeighbor === code ? null : code;
+        state.hub.selectedNeighbor = newSel;
+        render();
+        // Notify listeners (the connections table) so the row highlight
+        // stays in sync with the map.
+        if (svg) {
+          svg.dispatchEvent(new CustomEvent("hub-neighbor-select", {
+            detail: { code: newSel }, bubbles: true,
+          }));
+        }
+      }
+    });
+    svg.appendChild(halo);
     svg.appendChild(el("circle", {
       class: "marker-hub", cx: p.x, cy: p.y, r: 3.2,
+      style: "pointer-events: none;",
     }));
   }
 
@@ -568,6 +601,7 @@
     state.hub = {
       center: centerIata || null,
       neighbors: (neighborIatas || []).slice(),
+      selectedNeighbor: null,
     };
     if (centerIata && airportsRef[centerIata]) {
       const A = airportsRef[centerIata];
@@ -579,6 +613,14 @@
 
   function clearHub() {
     state.hub = null;
+    render();
+  }
+
+  // Highlight a specific neighbor of the current hub (or clear it if
+  // null). Mirrors clicking the neighbor's dot on the map.
+  function selectHubNeighbor(code) {
+    if (!state.hub) return;
+    state.hub.selectedNeighbor = code || null;
     render();
   }
 
@@ -628,7 +670,7 @@
 
   window.JetSetsGlobe = {
     init, setPuzzle, setDraft, setHistory, setSolution, setCoastlines,
-    setHub, clearHub,
+    setHub, clearHub, selectHubNeighbor,
     setZoom, zoomBy, resetView, reset,
   };
 })();

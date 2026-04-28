@@ -24,11 +24,14 @@
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 60px; }
 
-  /* Top header — title (clickable, returns to game) on the left; the
-     hamburger menu sits on the right and opens the About/Learn dropdown. */
+  /* Top header — title sits centered above the tagline; the hamburger
+     menu floats in the top right corner and opens the About/Learn
+     dropdown. The header is `position: relative` so we can absolutely
+     position the menu without breaking the title's centering. */
   .app-header {
     width: 100%; max-width: 1180px;
-    display: flex; align-items: center; justify-content: space-between;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
     margin-bottom: 4px;
   }
   .title {
@@ -42,7 +45,9 @@
   .title:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
   .title .plane { display: inline-block; transform: rotate(-25deg); color: var(--accent); }
 
-  .nav-menu { position: relative; }
+  .nav-menu {
+    position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  }
   .nav-toggle {
     width: 40px; height: 40px; padding: 0;
     background: var(--panel); border: 1px solid var(--border);
@@ -73,7 +78,7 @@
   }
   .nav-popover button:hover { background: var(--bg-alt); color: var(--accent); }
   .nav-popover button.active { background: var(--accent); color: var(--bg); }
-  .tagline { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+  .tagline { color: var(--muted); font-size: 14px; margin: 0 0 18px; text-align: center; }
   .mode-toggle {
     display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
     background: var(--panel); border: 1px solid var(--border);
@@ -359,6 +364,12 @@
   .solution-route .sol-airport.expanded .sol-name { display: inline; }
   .solution-route .sol-arrow { color: var(--muted); margin: 0 2px; }
   .solution-route .sol-direct { color: var(--muted); font-style: italic; }
+  /* "(N)" pill next to each intermediate showing how many airports are
+     valid at that slot. Smallest N = the bottleneck / hardest leg. */
+  .solution-route .sol-slot-count {
+    color: var(--muted); font-size: 11px; font-weight: 600;
+    margin-left: 1px; cursor: help;
+  }
   .solution-list { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--border); max-height: 320px; overflow-y: auto; }
   .solution-list .solution-route { margin: 4px 0; }
   .solution-num { color: var(--muted); margin-right: 6px; font-weight: 600; min-width: 24px; display: inline-block; }
@@ -575,49 +586,61 @@
     flex: 1 1 320px; min-width: 280px; max-width: 460px;
     background: var(--panel); border: 1px solid var(--border);
     border-radius: 14px; padding: 16px 18px;
-    display: flex; flex-direction: column; gap: 8px;
+    display: flex; flex-direction: column; gap: 10px;
+    /* Cap the panel to the map's height-ish so the connections list
+       gets its own scroll instead of pushing the layout tall. */
+    max-height: 600px;
   }
   .learn-info .hub-name {
-    font-size: 22px; font-weight: 800; color: var(--accent); margin: 0;
+    font-size: 20px; font-weight: 800; color: var(--accent); margin: 0;
+    line-height: 1.2;
   }
   .learn-info .hub-place { color: var(--muted); font-size: 13px; margin: 0; }
   .learn-info .hub-meta {
-    display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px;
+    display: flex; gap: 12px; flex-wrap: wrap; margin: 0;
     color: var(--muted); font-size: 12px;
   }
   .learn-info .hub-meta strong { color: var(--text); font-size: 13px; font-weight: 700; margin-right: 4px; }
   .learn-info .hub-empty { color: var(--muted); font-size: 13px; }
 
-  .connections-table {
-    width: 100%; max-width: 1100px; align-self: center;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
-    overflow: hidden;
+  /* Compact connections table that lives INSIDE .learn-info, below the
+     hub title. Only Code + Airport columns; scrolls vertically. */
+  .learn-info .connections {
+    margin-top: 4px; flex: 1 1 auto;
+    border-top: 1px solid var(--border); padding-top: 10px;
+    display: flex; flex-direction: column; min-height: 0;
   }
-  .connections-header {
-    padding: 12px 18px; border-bottom: 1px solid var(--border);
-    display: flex; justify-content: space-between; align-items: center;
-    color: var(--text); font-weight: 700; font-size: 14px;
+  .learn-info .connections-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 6px;
+    color: var(--text); font-weight: 700; font-size: 13px;
   }
-  .connections-header .count { color: var(--muted); font-size: 12px; font-weight: 500; }
-  .connections-body { max-height: 460px; overflow-y: auto; }
-  .connections-table table {
-    width: 100%; border-collapse: collapse; font-size: 13px;
+  .learn-info .connections-head .count { color: var(--muted); font-weight: 500; font-size: 11px; }
+  .learn-info .connections-body { overflow-y: auto; flex: 1 1 auto; min-height: 60px; }
+  .learn-info table.connections-list {
+    width: 100%; border-collapse: collapse; font-size: 12px;
   }
-  .connections-table th {
+  .learn-info table.connections-list th {
     position: sticky; top: 0; z-index: 1;
-    background: var(--bg-alt); color: var(--muted); text-align: left;
-    font-weight: 600; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
-    padding: 8px 14px; border-bottom: 1px solid var(--border);
+    background: var(--panel); color: var(--muted);
+    text-align: left; font-weight: 600;
+    font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+    padding: 6px 8px; border-bottom: 1px solid var(--border);
   }
-  .connections-table td {
-    padding: 8px 14px; border-bottom: 1px solid var(--border); color: var(--text);
+  .learn-info table.connections-list td {
+    padding: 5px 8px; border-bottom: 1px solid var(--border);
+    color: var(--text);
   }
-  .connections-table tr:last-child td { border-bottom: 0; }
-  .connections-table tr:hover td { background: var(--bg-alt); }
-  .connections-table .col-code { font-weight: 700; color: var(--accent); width: 70px; }
-  .connections-table .col-tier { color: var(--muted); width: 60px; font-size: 12px; }
-  .connections-table .empty {
-    padding: 18px; text-align: center; color: var(--muted); font-size: 13px;
+  .learn-info table.connections-list tr:last-child td { border-bottom: 0; }
+  .learn-info table.connections-list tr { cursor: pointer; }
+  .learn-info table.connections-list tr:hover td,
+  .learn-info table.connections-list tr.selected td { background: var(--bg-alt); }
+  .learn-info table.connections-list tr.selected td { color: var(--accent); }
+  .learn-info table.connections-list .col-code {
+    font-weight: 700; color: var(--accent); width: 50px; white-space: nowrap;
+  }
+  .learn-info table.connections-list .empty {
+    padding: 14px 8px; text-align: center; color: var(--muted); font-size: 12px;
   }
 
   @media (max-width: 960px) {
@@ -883,30 +906,7 @@
         <!-- The .map-panel is moved here by app.js when this view is active. -->
       </div>
       <div class="learn-info" id="learn-info">
-        <p class="hub-empty">Select an airport above to see its connections drawn on the globe and listed below.</p>
-      </div>
-    </div>
-
-    <div class="connections-table" id="connections-table">
-      <div class="connections-header">
-        <span>Connecting flights</span>
-        <span class="count" id="connections-count"></span>
-      </div>
-      <div class="connections-body">
-        <table>
-          <thead>
-            <tr>
-              <th class="col-code">Code</th>
-              <th>Airport</th>
-              <th>City</th>
-              <th>Country</th>
-              <th class="col-tier">Tier</th>
-            </tr>
-          </thead>
-          <tbody id="connections-tbody">
-            <tr><td colspan="5" class="empty">No airport selected.</td></tr>
-          </tbody>
-        </table>
+        <p class="hub-empty">Select an airport above to see its connections drawn on the globe and listed here.</p>
       </div>
     </div>
   </div>
