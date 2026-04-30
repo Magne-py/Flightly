@@ -13,6 +13,8 @@
   // ---------- Config ----------
   const MAX_ATTEMPTS = 6;
   const SLOTS = 5; // intermediate airport slots per attempt
+  // Speedrun: one continuous countdown across all puzzles in a run.
+  const SPEEDRUN_DURATION_MS = 60 * 1000;
 
   // ---------- State ----------
   // Mode names: 'daily', 'random', 'simple'..'extreme', a continent slug
@@ -57,6 +59,19 @@
     "layover-3": 3,
     "layover-4": 4,
   };
+  // Speedrun config — each entry describes one variant of the 60-second
+  // run. `variant` selects the puzzle picker; `continent` (when present)
+  // names the intra-continent subgraph to swap into.
+  const MODE_SPEEDRUN = {
+    "speedrun-global":         { variant: "global",    label: "Speedrun · Global" },
+    "speedrun-africa":         { variant: "continent", label: "Speedrun · Africa",         continent: "Africa" },
+    "speedrun-europe":         { variant: "continent", label: "Speedrun · Europe",         continent: "Europe" },
+    "speedrun-north-america":  { variant: "continent", label: "Speedrun · North America",  continent: "North America" },
+    "speedrun-south-america":  { variant: "continent", label: "Speedrun · South America",  continent: "South America" },
+    "speedrun-asia":           { variant: "continent", label: "Speedrun · Asia",           continent: "Asia" },
+    "speedrun-oceania":        { variant: "continent", label: "Speedrun · Oceania",        continent: "Oceania" },
+    "speedrun-cryptic":        { variant: "cryptic",   label: "Speedrun · Cryptic" },
+  };
   const MODE_LABELS = {
     daily: "Daily",
     random: "Random",
@@ -76,6 +91,14 @@
     "layover-3":      "3 layovers",
     "layover-4":      "4 layovers",
     cryptic: "Cryptic",
+    "speedrun-global":         "Speedrun · Global",
+    "speedrun-africa":         "Speedrun · Africa",
+    "speedrun-europe":         "Speedrun · Europe",
+    "speedrun-north-america":  "Speedrun · North America",
+    "speedrun-south-america":  "Speedrun · South America",
+    "speedrun-asia":           "Speedrun · Asia",
+    "speedrun-oceania":        "Speedrun · Oceania",
+    "speedrun-cryptic":        "Speedrun · Cryptic",
   };
   let attempts = []; // [[{code, color}, ...], ...]
   let currentRow = []; // draft row of airport codes
@@ -91,6 +114,23 @@
   let shortestPathAirports = null;
   // Per-slot sets: airport must appear at slot index i on at least one shortest path
   let shortestPathBySlot = null;
+
+  // ---------- Speedrun state ----------
+  // A speedrun is a 60-second timed run of consecutive puzzles. Solving a
+  // puzzle banks its score and auto-advances to the next; failing one (out
+  // of attempts or give-up) ends the run, as does the timer reaching 0.
+  // The run is armed when the player picks a speedrun mode (the first
+  // puzzle is loaded and the Start button is shown), but the countdown
+  // doesn't begin until the player clicks Start — this gives them a moment
+  // to read the start/destination before the clock starts ticking.
+  let speedrunActive = false;     // a speedrun mode is selected
+  let speedrunStarted = false;    // the player has clicked Start
+  let speedrunModeKey = null;     // current speedrun mode slug
+  let speedrunStartTime = 0;      // ms timestamp when the run began
+  let speedrunDeadline = 0;       // ms timestamp when the run will end
+  let speedrunScore = 0;          // running point total
+  let speedrunSolves = 0;         // running solved-puzzle count
+  let speedrunTimerInterval = null;
 
   // ---------- DOM ----------
   const $ = (id) => document.getElementById(id);
@@ -130,9 +170,26 @@
     "layover-3":     $("mode-layover-3"),
     "layover-4":     $("mode-layover-4"),
     cryptic:         $("mode-cryptic"),
+    "speedrun-global":        $("mode-speedrun-global"),
+    "speedrun-africa":        $("mode-speedrun-africa"),
+    "speedrun-europe":        $("mode-speedrun-europe"),
+    "speedrun-north-america": $("mode-speedrun-north-america"),
+    "speedrun-south-america": $("mode-speedrun-south-america"),
+    "speedrun-asia":          $("mode-speedrun-asia"),
+    "speedrun-oceania":       $("mode-speedrun-oceania"),
+    "speedrun-cryptic":       $("mode-speedrun-cryptic"),
   };
   const difficultyEl = $("puzzle-difficulty");
   const toast = $("toast");
+  // Speedrun HUD bits (corners that flank the puzzle-header).
+  const speedrunCornerLeft  = $("speedrun-corner-left");
+  const speedrunCornerRight = $("speedrun-corner-right");
+  const speedrunStartBtn    = $("speedrun-start-btn");
+  const speedrunTimeBlock   = $("speedrun-time-block");
+  const speedrunTimeEl      = $("speedrun-time");
+  const speedrunScoreEl     = $("speedrun-score");
+  const speedrunSolvedEl    = $("speedrun-solved");
+  const speedrunQuitBtn     = $("speedrun-quit");
 
   // ---------- Utils ----------
   function toast_show(msg, ms) {
@@ -155,20 +212,86 @@
   // counts edges; layovers count the intermediate airports). Build pool data
   // is bounded to 2..5 hops, so the layover keys 1..4 cover everything.
   const PUZZLES_BY_LAYOVERS = { 1: [], 2: [], 3: [], 4: [] };
+  // Joint bucket: PUZZLES_BY_STARS_AND_LAYOVERS[stars][layovers] = [idx,...]
+  // Used by the weighted picker for Daily / Random / Speedrun (see below).
+  const PUZZLES_BY_STARS_AND_LAYOVERS = {};
+  for (let s = 1; s <= 5; s++) {
+    PUZZLES_BY_STARS_AND_LAYOVERS[s] = { 1: [], 2: [], 3: [], 4: [] };
+  }
   for (let i = 0; i < PUZZLES.length; i++) {
     const p = PUZZLES[i];
     const s = p.stars;
+    const lay = (p.shortest_hops || 0) - 1;
     if (s >= 1 && s <= 5) {
       PUZZLES_BY_STARS[s].push(i);
     }
-    const lay = (p.shortest_hops || 0) - 1;
     if (lay >= 1 && lay <= 4) {
       PUZZLES_BY_LAYOVERS[lay].push(i);
     }
+    if (s >= 1 && s <= 5 && lay >= 1 && lay <= 4) {
+      PUZZLES_BY_STARS_AND_LAYOVERS[s][lay].push(i);
+    }
+  }
+
+  // ---------- Weighted puzzle distribution ----------
+  // Daily / Random / global-pool Speedrun pick puzzles from a JOINT
+  // distribution over (layover-count, star-tier). The marginals are:
+  //   Layovers (1,2,3,4):   15% / 30% / 30% / 25%
+  //   Stars   (1,2,3,4,5):  30% / 30% / 25% / 10% /  5%
+  // Each pick samples both axes independently, then looks up the joint
+  // bucket. Empty buckets fall back loosely (layover-only → stars-only →
+  // global pool) so picks always succeed even if the puzzle pool doesn't
+  // densely cover every (stars × layovers) cell.
+  const LAYOVER_WEIGHTS          = [0.15, 0.30, 0.30, 0.25];   // → 1..4 layovers (Daily / Random)
+  const SPEEDRUN_LAYOVER_WEIGHTS = [0.30, 0.30, 0.30, 0.10];   // → 1..4 layovers (Speedrun: short-route bias)
+  const STAR_WEIGHTS             = [0.30, 0.30, 0.25, 0.10, 0.05]; // → 1..5 stars (all modes)
+
+  // Sample an index in [0, weights.length) given uniform u in [0, 1).
+  function pickWeighted(weights, u) {
+    let cum = 0;
+    for (let i = 0; i < weights.length; i++) {
+      cum += weights[i];
+      if (u < cum) return i;
+    }
+    return weights.length - 1;
+  }
+
+  // Pick a puzzle index using the joint distribution. `rng` returns
+  // uniform [0, 1) floats — pass `Math.random` for live picks, or a
+  // seeded RNG for a deterministic Daily. `layWeights` lets a caller
+  // (currently Speedrun) swap in its own layover distribution while
+  // keeping the same star weights.
+  function weightedPuzzleIndex(rng, layWeights) {
+    const layW  = layWeights || LAYOVER_WEIGHTS;
+    const lay   = pickWeighted(layW,        rng()) + 1;  // 1..4
+    const stars = pickWeighted(STAR_WEIGHTS, rng()) + 1; // 1..5
+    let bucket = (PUZZLES_BY_STARS_AND_LAYOVERS[stars] || {})[lay] || [];
+    if (!bucket.length) bucket = PUZZLES_BY_LAYOVERS[lay] || [];   // relax stars
+    if (!bucket.length) bucket = PUZZLES_BY_STARS[stars] || [];    // relax layovers
+    if (!bucket.length) {                                          // global fallback
+      return Math.floor(rng() * PUZZLES.length);
+    }
+    return bucket[Math.floor(rng() * bucket.length)];
+  }
+
+  // Tiny seeded PRNG (mulberry32) — used for the Daily so the puzzle is
+  // stable across reloads on the same UTC date but the (stars × layover)
+  // sample still respects the configured weights.
+  function seededRng(seed) {
+    let state = (seed | 0) || 1;
+    return function () {
+      state = state + 0x6D2B79F5 | 0;
+      let t = state;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
   }
 
   function dailyPuzzle() {
-    const idx = dateSeed() % PUZZLES.length;
+    // Deterministic per UTC date, but sampled from the weighted joint
+    // distribution rather than uniform-over-PUZZLES.
+    const idx = weightedPuzzleIndex(seededRng(dateSeed()));
     return Object.assign(
       { id: "Daily " + new Date().toISOString().slice(0, 10) },
       PUZZLES[idx]
@@ -201,9 +324,18 @@
     );
   }
 
-  // "Random" mode: any puzzle from any difficulty tier in the global pool.
+  // "Random" mode: any puzzle from any difficulty tier in the global pool,
+  // sampled via the weighted layover/star distribution.
   function randomPuzzleAnyTier() {
-    const idx = Math.floor(Math.random() * PUZZLES.length);
+    const idx = weightedPuzzleIndex(Math.random);
+    return Object.assign({ id: `Random #${idx + 1}` }, PUZZLES[idx]);
+  }
+
+  // Speedrun's own picker — same star weights as Random, but its own
+  // layover distribution (more weight on shorter routes so the player
+  // can stack solves inside the 60-second window).
+  function randomSpeedrunPuzzle() {
+    const idx = weightedPuzzleIndex(Math.random, SPEEDRUN_LAYOVER_WEIGHTS);
     return Object.assign({ id: `Random #${idx + 1}` }, PUZZLES[idx]);
   }
 
@@ -614,12 +746,14 @@
     for (let i = 0; i < currentRow.length; i++) {
       rowData[i] = { code: currentRow[i], color: graded.colors[i] };
     }
-    // If this row connects start→dest but used MORE stops than the shortest
-    // path, repaint every filled cell light-green so the player can see at
-    // a glance that they got there but not optimally.
-    if (graded.fullyConnects && graded.stopsUsed > (puzzle.shortest_hops - 1)) {
+    // If this row connects start→dest, repaint every filled cell green so
+    // the win reads as a complete success — even if the player took more
+    // stops than the shortest path. (We used to paint these light-green to
+    // signal "valid but not optimal", but the extra color was more confusing
+    // than helpful — green simply means "you finished".)
+    if (graded.fullyConnects) {
       for (let i = 0; i < rowData.length; i++) {
-        if (rowData[i]) rowData[i].color = "lightgreen";
+        if (rowData[i]) rowData[i].color = "green";
       }
     }
     attempts.push(rowData);
@@ -635,12 +769,34 @@
       finished = true;
       won = true;
       renderGrid();
-      showResult(true, graded.stopsUsed, attempts.length);
+      if (speedrunActive) {
+        // Bank the score and roll into the next puzzle. The countdown
+        // does NOT reset between puzzles — same 60s clock for the whole
+        // run.
+        speedrunScore += score(graded.stopsUsed, attempts.length);
+        speedrunSolves += 1;
+        updateSpeedrunHud();
+        if (Date.now() >= speedrunDeadline) {
+          endSpeedrun("timeup");
+        } else {
+          // Tiny delay so the player sees the green row before the next
+          // puzzle replaces it.
+          setTimeout(() => {
+            if (speedrunActive) advanceSpeedrunPuzzle();
+          }, 350);
+        }
+      } else {
+        showResult(true, graded.stopsUsed, attempts.length);
+      }
     } else if (attempts.length >= MAX_ATTEMPTS) {
       finished = true;
       won = false;
       renderGrid();
-      showResult(false, null, attempts.length);
+      if (speedrunActive) {
+        endSpeedrun("fail");
+      } else {
+        showResult(false, null, attempts.length);
+      }
     } else {
       renderGrid();
       statusBar.textContent = `Not quite — ${MAX_ATTEMPTS - attempts.length} ${MAX_ATTEMPTS - attempts.length === 1 ? "try" : "tries"} left.`;
@@ -663,6 +819,8 @@
     // First show always lands above the grid — score & shortest-route
     // reveal sit on top of the player's colored cells.
     showResultPanelAt("top");
+    // Drop the speedrun-summary class in case a previous run left it on.
+    if (resultPanel) resultPanel.classList.remove("speedrun-summary-panel");
     // Hide the give-up button — the round is done. The "View result"
     // button takes its place once the panel is dismissed.
     if (giveUpBtn) giveUpBtn.style.display = "none";
@@ -713,7 +871,236 @@
     currentRow = [];
     if (window.JetSetsGlobe) JetSetsGlobe.setDraft([]);
     renderGrid();
-    showResult(false, null, attempts.length, /* gaveUp */ true);
+    // In a speedrun, "give up" mid-puzzle ends the run — same as failing.
+    if (speedrunActive) {
+      endSpeedrun("fail");
+    } else {
+      showResult(false, null, attempts.length, /* gaveUp */ true);
+    }
+  }
+
+  // ---------- Speedrun ----------
+  // Pick the next puzzle for the active speedrun's variant. Falls back to
+  // the global pool if a continent variant somehow runs dry.
+  function pickSpeedrunPuzzle(modeKey) {
+    const cfg = MODE_SPEEDRUN[modeKey];
+    if (!cfg) return null;
+    if (cfg.variant === "continent") {
+      const p = randomContinentPuzzle(cfg.continent);
+      if (p) return p;
+      // Continent fell empty — fall back to the speedrun-weighted picker
+      // rather than the Random picker so the layover bias is preserved.
+      return randomSpeedrunPuzzle();
+    }
+    if (cfg.variant === "cryptic") {
+      // Cryptic styling comes from the body class — the picker is the
+      // same global pool with speedrun layover weights. Re-label so the
+      // puzzle ID reads "Cryptic #N" rather than "Random #N" while the
+      // player blitzes through them.
+      const p = randomSpeedrunPuzzle();
+      if (p) p.id = `Cryptic #${(p.id || "").split("#")[1] || ""}`.trim();
+      return p;
+    }
+    // "global" — any puzzle in the world, with speedrun layover weights.
+    return randomSpeedrunPuzzle();
+  }
+
+  function startSpeedrun(modeKey) {
+    speedrunActive = true;
+    speedrunStarted = false;
+    speedrunModeKey = modeKey;
+    speedrunScore = 0;
+    speedrunSolves = 0;
+    speedrunStartTime = 0;
+    // Deadline isn't armed until the player clicks Start — set to a sentinel
+    // so the auto-advance path's "Date.now() >= deadline" check can't fire.
+    speedrunDeadline = Number.MAX_SAFE_INTEGER;
+    advanceSpeedrunPuzzle();
+    // Lock the input controls — the player can't type or submit until they
+    // click Start. Locking happens AFTER advanceSpeedrunPuzzle because
+    // startPuzzle() re-enables them for normal play.
+    lockSpeedrunControls();
+    updateSpeedrunHud();
+  }
+
+  // Player clicked Start — arm the countdown and hand control back to the
+  // input box so they can start typing immediately.
+  function beginSpeedrunRun() {
+    if (!speedrunActive || speedrunStarted) return;
+    speedrunStarted = true;
+    const now = Date.now();
+    speedrunStartTime = now;
+    speedrunDeadline = now + SPEEDRUN_DURATION_MS;
+    startSpeedrunTimer();
+    unlockSpeedrunControls();
+    updateSpeedrunHud();
+    if (input) input.focus();
+  }
+
+  // Pre-start: disable the controls so the player can't sneak in moves
+  // before the timer's running. (The puzzle itself is visible — we only
+  // gate the input.)
+  function lockSpeedrunControls() {
+    if (input) { input.disabled = true; input.blur(); }
+    if (addBtn)    addBtn.disabled = true;
+    if (undoBtn)   undoBtn.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+  }
+  function unlockSpeedrunControls() {
+    if (input)   input.disabled = false;
+    if (addBtn)  addBtn.disabled = false;
+    if (undoBtn) undoBtn.disabled = false;
+    // submitBtn stays disabled until the player adds an airport — that's
+    // its normal state at the top of a fresh puzzle.
+  }
+
+  function advanceSpeedrunPuzzle() {
+    if (!speedrunActive) return;
+    if (Date.now() >= speedrunDeadline) {
+      endSpeedrun("timeup");
+      return;
+    }
+    const next = pickSpeedrunPuzzle(speedrunModeKey);
+    if (!next) {
+      toast_show("No puzzles available for this speedrun variant.");
+      endSpeedrun("error");
+      return;
+    }
+    puzzle = next;
+    startPuzzle();
+    updateSpeedrunHud();
+  }
+
+  function startSpeedrunTimer() {
+    stopSpeedrunTimer();
+    speedrunTimerInterval = setInterval(() => {
+      updateSpeedrunHud();
+      if (speedrunActive && Date.now() >= speedrunDeadline) {
+        endSpeedrun("timeup");
+      }
+    }, 200);
+  }
+
+  function stopSpeedrunTimer() {
+    if (speedrunTimerInterval) {
+      clearInterval(speedrunTimerInterval);
+      speedrunTimerInterval = null;
+    }
+  }
+
+  function endSpeedrun(reason) {
+    if (!speedrunActive) return;
+    speedrunActive = false;
+    stopSpeedrunTimer();
+    showSpeedrunSummary(reason);
+    updateSpeedrunHud();
+  }
+
+  // The speedrun summary re-uses the inline result panel — same layout,
+  // different content. We tag the panel with .speedrun-summary-panel so
+  // the score/solved/time stack reads larger; the tag is removed when a
+  // regular round shows the panel later.
+  function showSpeedrunSummary(reason) {
+    finished = true;
+    won = false;
+    currentRow = [];
+    if (window.JetSetsGlobe) JetSetsGlobe.setDraft([]);
+    renderGrid();
+
+    showResultPanelAt("top");
+    if (resultPanel) resultPanel.classList.add("speedrun-summary-panel");
+    if (giveUpBtn) giveUpBtn.style.display = "none";
+
+    const elapsedMs = Math.min(SPEEDRUN_DURATION_MS, Date.now() - speedrunStartTime);
+    const elapsedSec = (elapsedMs / 1000).toFixed(1);
+    let title;
+    if (reason === "timeup") {
+      title = speedrunSolves > 0
+        ? `Time's up — ${speedrunSolves} solved!`
+        : "Time's up!";
+    } else if (reason === "fail") {
+      title = speedrunSolves > 0
+        ? `Run ended on a missed puzzle (${speedrunSolves} banked)`
+        : "Run ended — first puzzle missed.";
+    } else if (reason === "quit") {
+      title = speedrunSolves > 0
+        ? `Run ended early (${speedrunSolves} banked)`
+        : "Run ended early.";
+    } else {
+      title = "Run ended.";
+    }
+    resultHeading.textContent = title;
+    const variantLabel = (MODE_SPEEDRUN[speedrunModeKey] || {}).label || "Speedrun";
+    resultStats.innerHTML =
+      `<span><strong>${speedrunScore}</strong>pts</span>` +
+      `<span><strong>${speedrunSolves}</strong>solved</span>` +
+      `<span><strong>${elapsedSec}s</strong>time</span>` +
+      `<span>${variantLabel}</span>`;
+
+    statusBar.textContent = reason === "timeup"
+      ? "Time's up — your run is over."
+      : "Run ended.";
+    statusBar.className = "status-bar lose";
+
+    // Show the shortest route for the LAST puzzle the player saw —
+    // educational closure on whatever stumped them at the buzzer.
+    renderShortestRoutesBlock();
+
+    // Lock controls.
+    submitBtn.disabled = true;
+    addBtn.disabled = true;
+    undoBtn.disabled = true;
+    if (giveUpBtn) giveUpBtn.disabled = true;
+
+    newPuzzleBtn.style.display = "inline-block";
+    newPuzzleBtn.textContent = "New speedrun ↵";
+    newPuzzleBtn.title = "Or press Enter to start a fresh speedrun";
+  }
+
+  // Re-paint the speedrun HUD: timer, score, solved-count. Also drives
+  // visibility — when no run is selected the corner HUDs and quit button
+  // are hidden. While a run is armed but the player hasn't clicked Start
+  // yet, the Start button is shown in place of the timer.
+  function updateSpeedrunHud() {
+    const showHud = !!speedrunActive;
+    if (speedrunCornerLeft)  speedrunCornerLeft.style.display  = showHud ? "flex" : "none";
+    if (speedrunCornerRight) speedrunCornerRight.style.display = showHud ? "flex" : "none";
+    if (speedrunQuitBtn)     speedrunQuitBtn.style.display     = showHud ? "inline-block" : "none";
+    // Hide the regular Give-Up button during a speedrun — End run takes
+    // its place. Keep the round's normal "finished" state in charge of
+    // hiding/showing it the rest of the time (we don't want to override
+    // showResult's own toggle when the run isn't active).
+    if (giveUpBtn && showHud) giveUpBtn.style.display = "none";
+    document.body.classList.toggle("speedrun-active", showHud);
+    if (!showHud) return;
+
+    // Pre-start: Start button visible, timer hidden. Once started: swap.
+    if (speedrunStartBtn)  speedrunStartBtn.style.display  = speedrunStarted ? "none" : "inline-block";
+    if (speedrunTimeBlock) speedrunTimeBlock.style.display = speedrunStarted ? "flex" : "none";
+
+    if (speedrunStarted) {
+      const remaining = Math.max(0, speedrunDeadline - Date.now());
+      const secs = Math.ceil(remaining / 1000);
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      if (speedrunTimeEl) {
+        speedrunTimeEl.textContent = m + ":" + (s < 10 ? "0" : "") + s;
+        speedrunTimeEl.classList.toggle("speedrun-time-low", remaining <= 10000);
+      }
+    } else if (speedrunTimeEl) {
+      // Pre-start state — show the full duration as a preview.
+      const totalSec = Math.round(SPEEDRUN_DURATION_MS / 1000);
+      const m = Math.floor(totalSec / 60), s = totalSec % 60;
+      speedrunTimeEl.textContent = m + ":" + (s < 10 ? "0" : "") + s;
+      speedrunTimeEl.classList.remove("speedrun-time-low");
+    }
+    if (speedrunScoreEl) {
+      // Score reads "<score>" with a "<solved> solved" subline. Single
+      // element rewrite so the .speedrun-corner-sub wrapping stays inline
+      // with the score and we don't need separate DOM nodes for each.
+      speedrunScoreEl.textContent = String(speedrunScore);
+    }
+    if (speedrunSolvedEl) speedrunSolvedEl.textContent = String(speedrunSolves);
   }
 
   // Build / refresh the "Shortest route" block inside the result panel.
@@ -895,7 +1282,7 @@
 
   // ---------- Share ----------
   function buildShare() {
-    const emojiMap = { green: "🟩", lightgreen: "🟢", yellow: "🟨", orange: "🟧", red: "🟥", "": "⬜" };
+    const emojiMap = { green: "🟩", yellow: "🟨", orange: "🟧", red: "🟥", "": "⬜" };
     const lines = [];
     const header = won
       ? `JetSets ${puzzle.id} — solved in ${attempts.length}/${MAX_ATTEMPTS}`
@@ -913,8 +1300,17 @@
     return lines.join("\n");
   }
 
+  // Speedrun share: emit a single-line summary of the just-finished run
+  // rather than the (less useful) per-puzzle grid of the last attempt.
+  function buildSpeedrunShare() {
+    const cfg = MODE_SPEEDRUN[speedrunModeKey] || {};
+    const variant = cfg.label || "Speedrun";
+    return `JetSets ${variant} — ${speedrunScore} pts in 60s, ${speedrunSolves} solved`;
+  }
+
   shareBtn.addEventListener("click", () => {
-    const text = buildShare();
+    const isSummary = resultPanel && resultPanel.classList.contains("speedrun-summary-panel");
+    const text = isSummary ? buildSpeedrunShare() : buildShare();
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(() => toast_show("Copied to clipboard"));
     } else {
@@ -951,8 +1347,11 @@
       e.preventDefault();
       // Round over? Enter rolls a fresh puzzle. For Daily — which is
       // locked to one puzzle per day — Enter sends the player into Random
-      // instead, matching the "Play Random" button.
+      // instead, matching the "Play Random" button. During a speedrun's
+      // brief auto-advance gap finished=true but the run is still going
+      // — swallow the Enter so we don't accidentally restart the run.
       if (finished) {
+        if (speedrunActive) return;
         setMode(mode === "daily" ? "random" : mode);
         return;
       }
@@ -1001,6 +1400,14 @@
   });
   submitBtn.addEventListener("click", submitRow);
   if (giveUpBtn) giveUpBtn.addEventListener("click", giveUp);
+  if (speedrunQuitBtn) {
+    speedrunQuitBtn.addEventListener("click", () => {
+      if (speedrunActive) endSpeedrun("quit");
+    });
+  }
+  if (speedrunStartBtn) {
+    speedrunStartBtn.addEventListener("click", beginSpeedrunRun);
+  }
 
   // ---------- Result panel — close & re-open ----------
   // Corner × always dismisses the panel.
@@ -1022,9 +1429,19 @@
       hideResultPanel();
       return;
     }
+    // Pre-start speedrun: pressing Enter kicks off the timer (same effect
+    // as clicking the big yellow Start button on top of the timer block).
+    if (speedrunActive && !speedrunStarted && e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      beginSpeedrunRun();
+      return;
+    }
     if (finished) {
       if (e.key === "Enter" && !e.shiftKey && e.target !== input) {
         e.preventDefault();
+        // During a speedrun auto-advance gap, swallow Enter — the next
+        // puzzle is on its way and we don't want to restart the run.
+        if (speedrunActive) return;
         // Daily is locked to one per day → Enter rolls into Random.
         setMode(mode === "daily" ? "random" : mode);
       }
@@ -1045,7 +1462,7 @@
     if (!difficultyEl) return;
     // In Cryptic mode the player gets no place-name hints, so the difficulty
     // tier is hidden too — every puzzle reads as five question marks.
-    if (mode === "cryptic") {
+    if (mode === "cryptic" || mode === "speedrun-cryptic") {
       let html = `<span class="label">Cryptic</span>`;
       for (let i = 0; i < 5; i++) html += `<span class="star-on">?</span>`;
       difficultyEl.innerHTML = html;
@@ -1064,9 +1481,12 @@
   // ---------- Mode switching ----------
   // Wire ACTIVE_ROUTES + activeCodes for the selected mode, then pick a
   // puzzle. Continent modes swap to an intra-continent subgraph; everything
-  // else uses the full ROUTES.
+  // else uses the full ROUTES. Speedrun continent variants swap the same
+  // way as the regular By-Continent modes.
   function applyModeGraph(m) {
-    const cont = MODE_CONTINENT[m];
+    let cont = MODE_CONTINENT[m];
+    const sr = MODE_SPEEDRUN[m];
+    if (sr && sr.continent) cont = sr.continent;
     if (cont && window.CONTINENT_ROUTES && window.CONTINENT_ROUTES[cont]) {
       ACTIVE_ROUTES = window.CONTINENT_ROUTES[cont];
       activeCodes = new Set(Object.keys(ACTIVE_ROUTES));
@@ -1078,6 +1498,14 @@
 
   function setMode(m) {
     if (!(m in modeButtons)) return;
+    // Picking any non-speedrun mode (or a fresh speedrun slug) ends any
+    // in-flight run. We clear the run state up front so the rest of
+    // setMode runs in a known-clean baseline; if the new mode IS a
+    // speedrun, startSpeedrun re-arms it below.
+    if (speedrunActive) {
+      stopSpeedrunTimer();
+      speedrunActive = false;
+    }
     mode = m;
     for (const key of Object.keys(modeButtons)) {
       const btn = modeButtons[key];
@@ -1088,17 +1516,36 @@
     const isDifficulty = MODE_STARS[m] != null;
     const isContinent  = !!MODE_CONTINENT[m];
     const isLayovers   = MODE_LAYOVERS[m] != null;
+    const isSpeedrun   = !!MODE_SPEEDRUN[m];
     const ddDiff = document.getElementById("dropdown-difficulty");
     const ddCont = document.getElementById("dropdown-continent");
     const ddLay  = document.getElementById("dropdown-layovers");
+    const ddSr   = document.getElementById("dropdown-speedrun");
     if (ddDiff) ddDiff.classList.toggle("has-active", isDifficulty);
     if (ddCont) ddCont.classList.toggle("has-active", isContinent);
     if (ddLay)  ddLay.classList.toggle("has-active", isLayovers);
+    if (ddSr)   ddSr.classList.toggle("has-active", isSpeedrun);
     applyModeGraph(m);
 
     // Cryptic strips every place-name surface from the UI. Toggle the body
-    // class first so all the renders below pick the right styling.
-    document.body.classList.toggle("cryptic-mode", m === "cryptic");
+    // class first so all the renders below pick the right styling. The
+    // cryptic speedrun variant gets the same treatment.
+    document.body.classList.toggle(
+      "cryptic-mode",
+      m === "cryptic" || m === "speedrun-cryptic"
+    );
+
+    // Speedrun modes take a different path — they manage their own puzzle
+    // sequence + 60s timer. startSpeedrun picks the first puzzle and calls
+    // startPuzzle internally, so we return early. (The .speedrun-active
+    // body class — which drives the puzzle-header corner padding — is
+    // toggled inside updateSpeedrunHud so it tracks the live HUD state.)
+    if (isSpeedrun) {
+      startSpeedrun(m);
+      return;
+    }
+    // Non-speedrun: hide the HUD if it was visible.
+    updateSpeedrunHud();
 
     let next = null;
     if (m === "daily") {
@@ -1150,6 +1597,14 @@
       if (!trigger) continue;
       trigger.addEventListener("click", (e) => {
         e.stopPropagation();
+        // Special case: clicking the Speedrun trigger directly starts a
+        // global speedrun. The hover-menu still exposes the continent
+        // and cryptic variants for picking.
+        if (trigger.id === "trigger-speedrun") {
+          closeAll(null);
+          setMode("speedrun-global");
+          return;
+        }
         const wasOpen = d.classList.contains("open");
         closeAll(d);
         d.classList.toggle("open", !wasOpen);

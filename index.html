@@ -14,7 +14,6 @@
     --muted: #8ea3bf;
     --accent: #4ea8ff;
     --green: #57c26a;
-    --lightgreen: #a5d6a7;
     --yellow: #e9c13e;
     --orange: #e67e2b;
     --red: #d4504c;
@@ -111,6 +110,23 @@
   /* When the active mode is one of the dropdown's children, light the trigger up. */
   .mode-dropdown.has-active .mode-trigger { background: var(--accent); color: var(--bg); }
   .mode-dropdown.has-active .mode-trigger .caret { opacity: 0.9; }
+
+  /* Speedrun is its own thing — a timed, score-stacking variant. We give
+     its trigger button a distinct yellow→orange gradient so it reads as a
+     "special mode" at a glance, even when nothing in the dropdown is the
+     currently active mode. */
+  #dropdown-speedrun .mode-trigger {
+    background: linear-gradient(135deg, var(--yellow) 0%, var(--orange) 100%);
+    color: #111; font-weight: 700;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18) inset;
+  }
+  #dropdown-speedrun .mode-trigger:hover { filter: brightness(1.08); }
+  #dropdown-speedrun.has-active .mode-trigger {
+    background: linear-gradient(135deg, var(--yellow) 0%, var(--orange) 100%);
+    color: #111;
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  #dropdown-speedrun .mode-trigger .caret { opacity: 0.85; }
   /* Popover */
   .mode-menu {
     position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
@@ -205,12 +221,11 @@
   .cell .city { font-size: 10px; color: var(--muted); font-weight: 500; margin-top: 1px; line-height: 1.1; }
   .cell.empty { color: var(--muted); }
   .cell.green      { background: var(--green);      border-color: var(--green);      color: #fff; }
-  .cell.lightgreen { background: var(--lightgreen); border-color: var(--lightgreen); color: #0e1a2b; }
   .cell.yellow     { background: var(--yellow);     border-color: var(--yellow);     color: #111; }
   .cell.orange     { background: var(--orange);     border-color: var(--orange);     color: #fff; }
   .cell.red        { background: var(--red);        border-color: var(--red);        color: #fff; }
   .cell.green .city, .cell.orange .city, .cell.red .city { color: rgba(255,255,255,0.8); }
-  .cell.yellow .city, .cell.lightgreen .city { color: rgba(0,0,0,0.65); }
+  .cell.yellow .city { color: rgba(0,0,0,0.65); }
 
   .input-row {
     display: flex; gap: 8px; margin-top: 16px; margin-bottom: 16px;
@@ -403,10 +418,29 @@
   .legend-row { display: flex; align-items: flex-start; gap: 10px; margin: 4px 0; }
   .swatch { width: 14px; height: 14px; border-radius: 3px; flex: 0 0 14px; margin-top: 2px; }
   .swatch.green { background: var(--green); }
-  .swatch.lightgreen { background: var(--lightgreen); }
   .swatch.yellow { background: var(--yellow); }
   .swatch.orange { background: var(--orange); }
   .swatch.red { background: var(--red); }
+  /* Numbered swatch — used in the "How difficulty is set" panel where the
+     factors are sequential rather than colored. */
+  .swatch-num {
+    width: 18px; height: 18px; flex: 0 0 18px;
+    border-radius: 50%; background: var(--accent); color: var(--bg);
+    font-size: 11px; font-weight: 800; line-height: 18px; text-align: center;
+    margin-top: 0;
+  }
+  .legend-para { margin: 4px 0 6px; line-height: 1.5; }
+  .legend-warn {
+    margin-top: 10px; padding: 8px 10px;
+    background: var(--bg-alt); border-left: 3px solid var(--accent);
+    border-radius: 4px; line-height: 1.5;
+  }
+  .legend-warn b { color: var(--accent); }
+  .legend-body code {
+    background: var(--bg-alt); border: 1px solid var(--border);
+    padding: 0 4px; border-radius: 3px; font-size: 11px;
+    color: var(--accent);
+  }
 
   .toast {
     position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
@@ -415,6 +449,84 @@
     pointer-events: none; font-size: 14px;
   }
   .toast.visible { opacity: 1; }
+
+  /* ---------- Speedrun corners ---------- */
+  /* Two absolute-positioned blocks flank the route-display inside the
+     puzzle header during a speedrun. The left corner shows the Start
+     button initially; clicking Start hides the button and reveals the
+     live countdown timer. The right corner shows the running score with
+     a small "N solved" subline. The "End run" button moves into the
+     give-up-row below the grid (see .speedrun-quit). */
+  .puzzle-header { position: relative; }
+  .speedrun-corner {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    display: flex; flex-direction: column; align-items: center;
+    gap: 4px; z-index: 2; min-width: 78px;
+  }
+  .speedrun-corner-left  { left: 14px; }
+  .speedrun-corner-right { right: 14px; }
+  .speedrun-stat-block {
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+  }
+  .speedrun-corner-label {
+    color: var(--muted); font-size: 10px; text-transform: uppercase;
+    letter-spacing: 1px; font-weight: 600;
+  }
+  .speedrun-corner-value {
+    color: var(--text); font-size: 24px; font-weight: 800;
+    line-height: 1; letter-spacing: 0.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .speedrun-corner-value.speedrun-time-low {
+    color: var(--red); animation: speedrun-pulse 0.9s ease-in-out infinite;
+  }
+  .speedrun-corner-sub {
+    color: var(--muted); font-size: 10px; font-weight: 600;
+    margin-top: 2px; letter-spacing: 0.4px;
+  }
+  @keyframes speedrun-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+  }
+  /* The Start button sits "on top of" the timer (visually replacing it
+     until clicked). Distinct yellow→orange gradient ties it to the
+     Speedrun mode trigger so it reads as the run's primary CTA. */
+  .speedrun-start-btn {
+    background: linear-gradient(135deg, var(--yellow) 0%, var(--orange) 100%);
+    color: #111; font-weight: 800; border: 0; border-radius: 9px;
+    padding: 10px 18px; font-size: 14px; letter-spacing: 0.5px;
+    cursor: pointer; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18) inset, 0 2px 8px rgba(230, 126, 43, 0.28);
+    transition: filter 0.12s, transform 0.12s;
+  }
+  .speedrun-start-btn:hover { filter: brightness(1.08); }
+  .speedrun-start-btn:active { transform: translateY(1px); }
+  /* "End run" button — slots into the give-up-row alongside the give-up
+     button, only visible during an active run. */
+  .speedrun-quit {
+    background: var(--bg-alt); color: var(--red);
+    border: 1px solid var(--border); padding: 5px 12px;
+    border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+    margin-left: 8px;
+    transition: color 0.12s, border-color 0.12s, background 0.12s;
+  }
+  .speedrun-quit:hover { border-color: var(--red); }
+  /* Give the puzzle-header room on the sides during a speedrun so the
+     corners don't crowd the centered route-display. */
+  body.speedrun-active .puzzle-header { padding-left: 110px; padding-right: 110px; }
+  @media (max-width: 600px) {
+    body.speedrun-active .puzzle-header { padding-left: 14px; padding-right: 14px; padding-top: 78px; }
+    .speedrun-corner { top: 14px; transform: none; flex-direction: row; gap: 12px; }
+    .speedrun-corner-left  { left: 14px; }
+    .speedrun-corner-right { right: 14px; }
+  }
+  /* Result panel — speedrun summary mode. The .speedrun-summary-panel
+     class is added to the result panel by JS when a run ends, so the
+     summary stats stack large and centered. */
+  .result-panel.speedrun-summary-panel .result-headrow { padding-right: 24px; }
+  .result-panel.speedrun-summary-panel .result-stats {
+    margin-left: 0; gap: 6px 18px; font-size: 13px;
+  }
+  .result-panel.speedrun-summary-panel .result-stats strong { font-size: 17px; }
 
   /* ---------- Two-column layout + map ---------- */
   .layout {
@@ -458,7 +570,6 @@
   .leg-line { fill: none; stroke-width: 2; stroke-linecap: round; }
   .leg-line.draft { stroke: var(--accent); stroke-dasharray: 4 4; opacity: 0.95; }
   .leg-line.green      { stroke: var(--green);      stroke-dasharray: none; opacity: 0.55; }
-  .leg-line.lightgreen { stroke: var(--lightgreen); stroke-dasharray: none; opacity: 0.6;  }
   .leg-line.yellow     { stroke: var(--yellow);     stroke-dasharray: none; opacity: 0.55; }
   .leg-line.orange { stroke: var(--orange); stroke-dasharray: none; opacity: 0.55; }
   .leg-line.red    { stroke: var(--red);    stroke-dasharray: 2 3; opacity: 0.45; }
@@ -643,6 +754,41 @@
     padding: 14px 8px; text-align: center; color: var(--muted); font-size: 12px;
   }
 
+  /* About-page worked-examples legend ("Confusing grading patterns"). Sits
+     inside the "How grading works" about-card. The .legend default styling
+     gives it a panel background that conflicts with the surrounding card,
+     so we strip the inner panel down to a flat insert that lines up under
+     the colour table. */
+  .about-legend {
+    width: 100%; max-width: 100%; margin-top: 14px;
+    background: var(--bg-alt);
+  }
+  .about-legend > summary { padding: 10px 14px; font-size: 13px; }
+  .about-legend .legend-body { padding: 4px 14px 12px; color: var(--text); }
+  .grade-example {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 10px 0; border-top: 1px solid var(--border);
+  }
+  .grade-example:first-of-type { border-top: 0; padding-top: 4px; }
+  .grade-example-row {
+    display: flex; gap: 4px; flex-wrap: wrap;
+  }
+  /* Mini grid cells that visually mirror the in-game grid (same colors,
+     same code styling — just smaller). */
+  .ge-cell {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 56px; padding: 6px 10px; border-radius: 7px;
+    font-weight: 700; font-size: 13px; letter-spacing: 0.5px;
+    border: 2px solid transparent;
+  }
+  .ge-cell.green      { background: var(--green);      color: #fff; border-color: var(--green); }
+  .ge-cell.yellow     { background: var(--yellow);     color: #111; border-color: var(--yellow); }
+  .ge-cell.orange     { background: var(--orange);     color: #fff; border-color: var(--orange); }
+  .ge-cell.red        { background: var(--red);        color: #fff; border-color: var(--red); }
+  .grade-example-text { margin: 0; line-height: 1.55; color: var(--text); font-size: 13px; }
+  .grade-example-text b { color: var(--accent); }
+  .grade-example-text i { color: var(--muted); font-style: normal; font-weight: 600; margin-right: 2px; }
+
   @media (max-width: 960px) {
     .layout { flex-direction: column; align-items: stretch; }
     .right-col { flex: 0 0 auto; position: static; width: 100%; max-width: 720px; align-self: center; }
@@ -679,7 +825,8 @@
 <div id="view-game" class="view active">
 <div class="mode-toggle" role="tablist" aria-label="Game mode">
   <button id="mode-daily"  class="active">Daily</button>
-  <button id="mode-random" class="group-end" title="A random puzzle from any difficulty tier">Random</button>
+  <button id="mode-random" title="A random puzzle from any difficulty tier">Random</button>
+  <button id="mode-cryptic" class="group-end" title="Random puzzle, no map, IATA codes only — pure pathfinding">Cryptic</button>
 
   <div class="mode-dropdown group-end" id="dropdown-difficulty">
     <button class="mode-trigger" id="trigger-difficulty" type="button"
@@ -723,12 +870,48 @@
     </div>
   </div>
 
-  <button id="mode-cryptic" title="Random puzzle, no map, IATA codes only — pure pathfinding">Cryptic</button>
+  <div class="mode-dropdown" id="dropdown-speedrun">
+    <button class="mode-trigger" id="trigger-speedrun" type="button"
+            aria-haspopup="true" aria-expanded="false">
+      Speedrun<span class="caret">&#9662;</span>
+    </button>
+    <div class="mode-menu" role="menu" aria-labelledby="trigger-speedrun">
+      <button id="mode-speedrun-global"        role="menuitem" title="60-second run, any puzzle worldwide">Global</button>
+      <button id="mode-speedrun-africa"        role="menuitem" title="60-second run, Africa puzzles only">Africa</button>
+      <button id="mode-speedrun-europe"        role="menuitem" title="60-second run, Europe puzzles only">Europe</button>
+      <button id="mode-speedrun-north-america" role="menuitem" title="60-second run, North America puzzles only">North America</button>
+      <button id="mode-speedrun-south-america" role="menuitem" title="60-second run, South America puzzles only">South America</button>
+      <button id="mode-speedrun-asia"          role="menuitem" title="60-second run, Asia puzzles only">Asia</button>
+      <button id="mode-speedrun-oceania"       role="menuitem" title="60-second run, Oceania puzzles only">Oceania</button>
+      <button id="mode-speedrun-cryptic"       role="menuitem" title="60-second run, codes only — no map, no place names">Cryptic</button>
+    </div>
+  </div>
 </div>
 
 <div class="layout">
   <div class="left-col">
     <div class="puzzle-header">
+      <!-- Speedrun corners — flank the route-display when a speedrun is
+           active. Left corner shows the Start button initially; clicking
+           Start hides it and reveals the live timer. Right corner shows
+           the running point total with a subtle "N solved" subtitle. -->
+      <div class="speedrun-corner speedrun-corner-left" id="speedrun-corner-left" style="display:none">
+        <button class="speedrun-start-btn" id="speedrun-start-btn" type="button"
+                title="Start the run — focuses the airport search bar and starts the 60-second timer">
+          Start
+        </button>
+        <div class="speedrun-stat-block" id="speedrun-time-block" style="display:none">
+          <div class="speedrun-corner-label">Time</div>
+          <div class="speedrun-corner-value" id="speedrun-time">1:00</div>
+        </div>
+      </div>
+      <div class="speedrun-corner speedrun-corner-right" id="speedrun-corner-right" style="display:none">
+        <div class="speedrun-stat-block">
+          <div class="speedrun-corner-label">Score</div>
+          <div class="speedrun-corner-value" id="speedrun-score">0</div>
+          <div class="speedrun-corner-sub"><span id="speedrun-solved">0</span> solved</div>
+        </div>
+      </div>
       <div class="route-display">
         <div class="endpoint">
           <div class="code" id="start-code">—</div>
@@ -767,6 +950,7 @@
 
     <div class="give-up-row">
       <button id="give-up-btn" class="give-up-btn" title="Reveal the answer and end the round">Give up &amp; reveal answer</button>
+      <button id="speedrun-quit" class="speedrun-quit" type="button" style="display:none" title="End the run early">End run</button>
       <button id="show-result-btn" class="show-result-btn" type="button" style="display:none" title="Re-open the result panel">View result</button>
     </div>
 
@@ -798,11 +982,25 @@
     <details class="legend">
       <summary>How grading works</summary>
       <div class="legend-body">
-        <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — on the shortest route &amp; in the right slot.</div></div>
+        <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — on the shortest route &amp; in the right slot. The whole row lights up green when you complete the journey, even if you took more stops than the shortest path.</div></div>
         <div class="legend-row"><div class="swatch yellow"></div><div><b>Yellow</b> — on the shortest route but wrong slot.</div></div>
         <div class="legend-row"><div class="swatch orange"></div><div><b>Orange</b> — a valid onward flight that still reaches the destination, just via a longer route.</div></div>
         <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight exists from the previous airport, or there's no onward path to the destination.</div></div>
-        <div class="legend-row"><div class="swatch lightgreen"></div><div><b>Light green</b> — the row that completes the journey; lit up when you've finished the puzzle (paler if you took more stops than the shortest route).</div></div>
+      </div>
+    </details>
+
+    <details class="legend">
+      <summary>How difficulty is set</summary>
+      <div class="legend-body">
+        <p class="legend-para">Each puzzle is scored on five factors and bucketed into <b>1★ Simple</b> through <b>5★ Extreme</b>:</p>
+        <div class="legend-row"><div class="swatch-num">1</div><div><b>Hop count</b> — longer shortest routes are harder.</div></div>
+        <div class="legend-row"><div class="swatch-num">2</div><div><b>Distinct shortest paths</b> — many alternatives = easier.</div></div>
+        <div class="legend-row"><div class="swatch-num">3</div><div><b>Endpoint fame</b> — well-known hubs anchor your search.</div></div>
+        <div class="legend-row"><div class="swatch-num">4</div><div><b>Intermediate fame</b> — a famous airport on the shortest path is easier to find.</div></div>
+        <div class="legend-row"><div class="swatch-num">5</div><div><b>Slot tightness</b> — fewer valid airports per slot = harder.</div></div>
+        <p class="legend-para legend-warn">
+          <b>Heads up:</b> a <b>1★ Simple</b> puzzle can still stump you if there's only <b>one shortest path</b>. With a single valid route every slot has to be exactly right — the star rating reflects average solver odds, not a guarantee that the answer is obvious. Use the per-leg <code>(N)</code> count in the result panel to see which slot is the bottleneck.
+        </p>
       </div>
     </details>
   </div>
@@ -839,7 +1037,7 @@
       <div class="grade-table">
         <div class="swatch green"></div>
         <div><b>Green</b></div>
-        <div>The airport sits on a shortest route <i>and</i> in the correct slot.</div>
+        <div>The airport sits on a shortest route <i>and</i> in the correct slot. When you complete the journey, every filled cell in that row lights up green — the win is the win, regardless of how many stops you used.</div>
 
         <div class="swatch yellow"></div>
         <div><b>Yellow</b></div>
@@ -852,11 +1050,64 @@
         <div class="swatch red"></div>
         <div><b>Red</b></div>
         <div>No flight exists from the previous airport, or no onward path reaches the destination from here.</div>
-
-        <div class="swatch lightgreen"></div>
-        <div><b>Light green</b></div>
-        <div>The completing row when you finish — paler when your route used more stops than the shortest possible.</div>
       </div>
+
+      <details class="legend about-legend">
+        <summary>Confusing grading patterns — worked examples</summary>
+        <div class="legend-body">
+          <p class="legend-para">
+            Cells are graded <b>per-slot, independently</b>. Each slot is checked against the single shortest route that best matches your row, so neighbouring cells can disagree in ways that look strange at first. Here are the patterns that surprise most players:
+          </p>
+
+          <div class="grade-example">
+            <div class="grade-example-row">
+              <span class="ge-cell green">CDG</span>
+              <span class="ge-cell orange">MAD</span>
+              <span class="ge-cell green">DXB</span>
+            </div>
+            <p class="grade-example-text"><b>Green → Orange → Green.</b> Slot 1 (CDG) and slot 3 (DXB) both sit on the shortest path; slot 2 (MAD) doesn't, but a real flight exists from MAD that eventually still reaches the destination. Because each slot is graded independently of its neighbours, a bad middle stop doesn't poison the rest of the row. <i>Fix:</i> swap MAD for whichever airport the shortest route uses between CDG and DXB.</p>
+          </div>
+
+          <div class="grade-example">
+            <div class="grade-example-row">
+              <span class="ge-cell green">JFK</span>
+              <span class="ge-cell green">LHR</span>
+              <span class="ge-cell green">SIN</span>
+              <span class="ge-cell green">SYD</span>
+            </div>
+            <p class="grade-example-text"><b>An all-green row that's longer than the shortest path.</b> Once you complete the journey, every filled cell is repainted green — the win is a win. The result panel will tell you the shortest possible was fewer stops, so you can chase a higher score next round, but the row itself reads as "you got there." <i>Fix:</i> compare against the shortest route shown in the result panel and try to drop a stop next time.</p>
+          </div>
+
+          <div class="grade-example">
+            <div class="grade-example-row">
+              <span class="ge-cell red">XYZ</span>
+              <span class="ge-cell yellow">AMS</span>
+              <span class="ge-cell orange">DOH</span>
+            </div>
+            <p class="grade-example-text"><b>Yellow after a red leg.</b> Yellow doesn't require the previous leg to fly — if an airport is on a shortest route (just in the wrong slot), we still tell you. Even though the chain leading up to AMS broke, AMS is a useful airport to keep — just reposition it. <i>Fix:</i> move AMS to the slot where it belongs and replace XYZ.</p>
+          </div>
+
+          <div class="grade-example">
+            <div class="grade-example-row">
+              <span class="ge-cell yellow">FRA</span>
+              <span class="ge-cell yellow">IST</span>
+            </div>
+            <p class="grade-example-text"><b>Two yellows in a row.</b> Both airports are on a shortest route, but neither is in the right slot. Often this means you got the right pair but in reverse, or you need to drop a stop and shift the rest down. <i>Fix:</i> try swapping the two airports' positions next round.</p>
+          </div>
+
+          <div class="grade-example">
+            <div class="grade-example-row">
+              <span class="ge-cell green">LHR</span>
+              <span class="ge-cell red">QQQ</span>
+            </div>
+            <p class="grade-example-text"><b>Green then red.</b> Slot 1 nailed the shortest route's first hop, but slot 2 is unreachable from LHR — or it can't reach the destination at all. <i>Fix:</i> keep LHR, replace QQQ with a connecting hub from the Learn page connections list.</p>
+          </div>
+
+          <p class="legend-para" style="margin-top: 12px;">
+            The cardinal rule: <b>treat each cell as its own verdict.</b> A red doesn't mean everything after it is wrong, and a green doesn't validate the cells before it.
+          </p>
+        </div>
+      </details>
     </div>
 
     <div class="about-card">
@@ -909,6 +1160,7 @@
         <p class="hub-empty">Select an airport above to see its connections drawn on the globe and listed here.</p>
       </div>
     </div>
+
   </div>
 </div><!-- /#view-learn -->
 
