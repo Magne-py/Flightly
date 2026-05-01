@@ -162,6 +162,7 @@
   body.cryptic-mode .right-col { display: none; }
   body.cryptic-mode .layout { max-width: 600px; }
   body.cryptic-mode .endpoint .city,
+  body.cryptic-mode .endpoint .country,
   body.cryptic-mode .cell .city,
   body.cryptic-mode .suggestion .s-city,
   body.cryptic-mode .suggestion .s-country,
@@ -190,6 +191,10 @@
   .endpoint { display: flex; flex-direction: column; align-items: center; }
   .endpoint .code { font-size: 28px; font-weight: 800; letter-spacing: 1px; color: var(--accent); }
   .endpoint .city { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .endpoint .country {
+    font-size: 11px; color: var(--muted); margin-top: 1px;
+    letter-spacing: 1.5px; font-weight: 700; opacity: 0.75;
+  }
   .route-arrow { color: var(--muted); font-size: 22px; letter-spacing: 4px; }
   .puzzle-meta {
     display: flex; flex-wrap: wrap; gap: 12px;
@@ -264,7 +269,8 @@
   }
   .suggestion > span:last-child { flex: 0 0 auto; }
   .suggestion .s-code { font-weight: 700; color: var(--accent); }
-  .suggestion .s-city { color: var(--muted); margin-left: 8px; }
+  .suggestion .s-city { color: var(--text); margin-left: 8px; font-weight: 500; }
+  .suggestion .s-name { color: var(--muted); font-size: 12px; margin-left: 8px; opacity: 0.85; }
   .suggestion .s-country { color: var(--muted); font-size: 12px; }
 
   .status-bar {
@@ -387,6 +393,28 @@
   }
   .solution-list { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--border); max-height: 320px; overflow-y: auto; }
   .solution-list .solution-route { margin: 4px 0; }
+
+  /* Speedrun summary — compressed list of every solved route. Each row
+     reads "1.  <route>   +N pts · 2 tries". */
+  .speedrun-history-block { margin-top: 4px; }
+  .speedrun-history-list {
+    margin-top: 4px; padding-top: 6px;
+    border-top: 1px solid var(--border);
+    max-height: 220px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .speedrun-history-row {
+    display: flex; align-items: baseline; gap: 8px;
+    font-size: 13px; line-height: 1.5;
+    padding: 2px 0;
+  }
+  .speedrun-history-num {
+    color: var(--muted); font-weight: 600; min-width: 18px; flex-shrink: 0;
+  }
+  .speedrun-history-route { flex: 1 1 auto; min-width: 0; }
+  .speedrun-history-meta {
+    color: var(--muted); font-size: 12px; flex-shrink: 0; white-space: nowrap;
+  }
   .solution-num { color: var(--muted); margin-right: 6px; font-weight: 600; min-width: 24px; display: inline-block; }
   .solution-more { color: var(--muted); font-size: 12px; padding: 6px 0; font-style: italic; }
 
@@ -876,14 +904,14 @@
       Speedrun<span class="caret">&#9662;</span>
     </button>
     <div class="mode-menu" role="menu" aria-labelledby="trigger-speedrun">
-      <button id="mode-speedrun-global"        role="menuitem" title="60-second run, any puzzle worldwide">Global</button>
-      <button id="mode-speedrun-africa"        role="menuitem" title="60-second run, Africa puzzles only">Africa</button>
-      <button id="mode-speedrun-europe"        role="menuitem" title="60-second run, Europe puzzles only">Europe</button>
-      <button id="mode-speedrun-north-america" role="menuitem" title="60-second run, North America puzzles only">North America</button>
-      <button id="mode-speedrun-south-america" role="menuitem" title="60-second run, South America puzzles only">South America</button>
-      <button id="mode-speedrun-asia"          role="menuitem" title="60-second run, Asia puzzles only">Asia</button>
-      <button id="mode-speedrun-oceania"       role="menuitem" title="60-second run, Oceania puzzles only">Oceania</button>
-      <button id="mode-speedrun-cryptic"       role="menuitem" title="60-second run, codes only — no map, no place names">Cryptic</button>
+      <button id="mode-speedrun-global"        role="menuitem" title="90-second run, any puzzle worldwide">Global</button>
+      <button id="mode-speedrun-africa"        role="menuitem" title="90-second run, Africa puzzles only">Africa</button>
+      <button id="mode-speedrun-europe"        role="menuitem" title="90-second run, Europe puzzles only">Europe</button>
+      <button id="mode-speedrun-north-america" role="menuitem" title="90-second run, North America puzzles only">North America</button>
+      <button id="mode-speedrun-south-america" role="menuitem" title="90-second run, South America puzzles only">South America</button>
+      <button id="mode-speedrun-asia"          role="menuitem" title="90-second run, Asia puzzles only">Asia</button>
+      <button id="mode-speedrun-oceania"       role="menuitem" title="90-second run, Oceania puzzles only">Oceania</button>
+      <button id="mode-speedrun-cryptic"       role="menuitem" title="90-second run, codes only — no map, no place names">Cryptic</button>
     </div>
   </div>
 </div>
@@ -897,12 +925,12 @@
            the running point total with a subtle "N solved" subtitle. -->
       <div class="speedrun-corner speedrun-corner-left" id="speedrun-corner-left" style="display:none">
         <button class="speedrun-start-btn" id="speedrun-start-btn" type="button"
-                title="Start the run — focuses the airport search bar and starts the 60-second timer">
+                title="Start the run — focuses the airport search bar and starts the 90-second timer">
           Start
         </button>
         <div class="speedrun-stat-block" id="speedrun-time-block" style="display:none">
           <div class="speedrun-corner-label">Time</div>
-          <div class="speedrun-corner-value" id="speedrun-time">1:00</div>
+          <div class="speedrun-corner-value" id="speedrun-time">1:30</div>
         </div>
       </div>
       <div class="speedrun-corner speedrun-corner-right" id="speedrun-corner-right" style="display:none">
@@ -916,11 +944,13 @@
         <div class="endpoint">
           <div class="code" id="start-code">—</div>
           <div class="city" id="start-city">&nbsp;</div>
+          <div class="country" id="start-country">&nbsp;</div>
         </div>
         <div class="route-arrow">&#x2708; &#x2192;</div>
         <div class="endpoint">
           <div class="code" id="dest-code">—</div>
           <div class="city" id="dest-city">&nbsp;</div>
+          <div class="country" id="dest-country">&nbsp;</div>
         </div>
       </div>
       <div class="puzzle-meta">
@@ -1089,6 +1119,15 @@
 
           <div class="grade-example">
             <div class="grade-example-row">
+              <span class="ge-cell green">LHR</span>
+              <span class="ge-cell yellow">DXB</span>
+              <span class="ge-cell orange">SIN</span>
+            </div>
+            <p class="grade-example-text"><b>Green then Yellow — same slot the shortest route uses, but no flight from your previous airport.</b> Yellow doesn't always mean "wrong slot." Here DXB <i>is</i> on a shortest route <i>and</i> sits in the slot where that route puts it — but there's no direct flight from LHR to DXB on this particular shortest path, so the leg between green and yellow is broken. The grader marks DXB yellow rather than green to flag that the connection won't fly, even though the airport itself is right. <i>Fix:</i> either swap LHR for an airport that does fly to DXB, or leave LHR and replace DXB with a hub that LHR connects to and that still leads to the destination.</p>
+          </div>
+
+          <div class="grade-example">
+            <div class="grade-example-row">
               <span class="ge-cell yellow">FRA</span>
               <span class="ge-cell yellow">IST</span>
             </div>
@@ -1121,6 +1160,17 @@
         <li><b>Slot tightness</b> — narrow slot choices are harder.</li>
       </ul>
       <p class="muted">Final ratings are bucketed into quintiles, so the distribution is balanced across the 1–5★ range.</p>
+    </div>
+
+    <div class="about-card">
+      <h2>How scoring works</h2>
+      <p class="muted">Solving a puzzle pays out points based on three multiplicative factors:</p>
+      <ul>
+        <li><b>Difficulty base</b> — 1★ pays 50, 2★ pays 80, 3★ pays 120, 4★ pays 180, 5★ pays 260. Harder puzzles are worth more headline points.</li>
+        <li><b>Attempt curve</b> — full credit on try 1, then a smooth linear taper down to 1/6 credit on try 6. Solve faster, score more.</li>
+        <li><b>Optimal-route bonus</b> — match the shortest hop count exactly and the payout is multiplied by <b>1.5×</b>. A win that takes extra stops still counts, just without the bonus.</li>
+      </ul>
+      <p class="muted">Worked examples: a 5★ Extreme nailed in 1 try with the optimal route earns <b>390 pts</b>. A 3★ Medium solved on try 2 with the optimal route earns <b>150 pts</b>. A 1★ Simple solved on try 6 without the optimal route earns <b>8 pts</b>. Speedrun stacks every solve into a running total across the 90-second window.</p>
     </div>
 
     <div class="about-card">
@@ -1171,6 +1221,7 @@
 <script src="data/puzzles.js"></script>
 <script src="data/continent_routes.js"></script>
 <script src="data/continent_puzzles.js"></script>
+<script src="data/country_codes.js"></script>
 <script src="data/coastlines.js"></script>
 <script src="globe.js"></script>
 <script src="game.js"></script>

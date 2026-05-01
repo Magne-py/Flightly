@@ -14,7 +14,7 @@
   const MAX_ATTEMPTS = 6;
   const SLOTS = 5; // intermediate airport slots per attempt
   // Speedrun: one continuous countdown across all puzzles in a run.
-  const SPEEDRUN_DURATION_MS = 60 * 1000;
+  const SPEEDRUN_DURATION_MS = 90 * 1000;
 
   // ---------- State ----------
   // Mode names: 'daily', 'random', 'simple'..'extreme', a continent slug
@@ -59,7 +59,7 @@
     "layover-3": 3,
     "layover-4": 4,
   };
-  // Speedrun config — each entry describes one variant of the 60-second
+  // Speedrun config — each entry describes one variant of the 90-second
   // run. `variant` selects the puzzle picker; `continent` (when present)
   // names the intra-continent subgraph to swap into.
   const MODE_SPEEDRUN = {
@@ -116,7 +116,7 @@
   let shortestPathBySlot = null;
 
   // ---------- Speedrun state ----------
-  // A speedrun is a 60-second timed run of consecutive puzzles. Solving a
+  // A speedrun is a 90-second timed run of consecutive puzzles. Solving a
   // puzzle banks its score and auto-advances to the next; failing one (out
   // of attempts or give-up) ends the run, as does the timer reaching 0.
   // The run is armed when the player picks a speedrun mode (the first
@@ -130,6 +130,7 @@
   let speedrunDeadline = 0;       // ms timestamp when the run will end
   let speedrunScore = 0;          // running point total
   let speedrunSolves = 0;         // running solved-puzzle count
+  let speedrunHistory = [];       // [{start, dest, path, attemptsUsed, points}]
   let speedrunTimerInterval = null;
 
   // ---------- DOM ----------
@@ -333,7 +334,7 @@
 
   // Speedrun's own picker — same star weights as Random, but its own
   // layover distribution (more weight on shorter routes so the player
-  // can stack solves inside the 60-second window).
+  // can stack solves inside the 90-second window).
   function randomSpeedrunPuzzle() {
     const idx = weightedPuzzleIndex(Math.random, SPEEDRUN_LAYOVER_WEIGHTS);
     return Object.assign({ id: `Random #${idx + 1}` }, PUZZLES[idx]);
@@ -669,8 +670,12 @@
 
     $("start-code").textContent = puzzle.start;
     $("start-city").textContent = AIRPORTS[puzzle.start].city;
+    $("start-country").textContent =
+      (window.COUNTRY_CODES && window.COUNTRY_CODES[AIRPORTS[puzzle.start].country]) || "";
     $("dest-code").textContent = puzzle.dest;
     $("dest-city").textContent = AIRPORTS[puzzle.dest].city;
+    $("dest-country").textContent =
+      (window.COUNTRY_CODES && window.COUNTRY_CODES[AIRPORTS[puzzle.dest].country]) || "";
     $("puzzle-id").textContent = puzzle.id || "";
     renderDifficulty();
     const hopsText = puzzle.shortest_hops === 2
@@ -771,10 +776,23 @@
       renderGrid();
       if (speedrunActive) {
         // Bank the score and roll into the next puzzle. The countdown
-        // does NOT reset between puzzles — same 60s clock for the whole
+        // does NOT reset between puzzles — same 90s clock for the whole
         // run.
-        speedrunScore += score(graded.stopsUsed, attempts.length);
+        const earned = score(graded.stopsUsed, attempts.length);
+        speedrunScore += earned;
         speedrunSolves += 1;
+        // Capture this puzzle for the end-of-run summary. The path is
+        // the full chain start → typed-intermediates → dest.
+        const intermediates = rowData
+          .filter((cell) => cell && cell.code)
+          .map((cell) => cell.code);
+        speedrunHistory.push({
+          start: puzzle.start,
+          dest: puzzle.dest,
+          path: [puzzle.start, ...intermediates, puzzle.dest],
+          attemptsUsed: attempts.length,
+          points: earned,
+        });
         updateSpeedrunHud();
         if (Date.now() >= speedrunDeadline) {
           endSpeedrun("timeup");
@@ -807,12 +825,30 @@
   }
 
   // ---------- Scoring ----------
-  function score(stopsUsed, attemptsUsed) {
-    // Points = (max_stops − stops_used) × attempts_bonus
-    // max_stops = 5 (slots). attempts_bonus = (MAX_ATTEMPTS + 1 − attemptsUsed).
-    // Direct flight on first try: (5 - 0) * 6 = 30.
-    // Shortest route (e.g. 3 stops) on 3rd try: (5 - 3) * 4 = 8.
-    return (SLOTS - stopsUsed) * (MAX_ATTEMPTS + 1 - attemptsUsed);
+  // Three multiplicative factors:
+  //   base    — driven by puzzle difficulty (stars). Harder puzzles score
+  //             higher headline numbers, so a 5★ Extreme on try 1 pays out
+  //             far more than a 1★ Simple on try 1.
+  //   attempt — linear curve from 1.00 (try 1) down to 1/MAX_ATTEMPTS
+  //             (try 6). Solve faster, score more.
+  //   optimal — 1.5× bonus when the player's stops_used matches the
+  //             puzzle's shortest hop count exactly. Hitting the optimum
+  //             is meaningful and visible on the result panel.
+  // Range: ~5 pts (1★ Simple, suboptimal, try 6) to ~390 pts (5★ Extreme,
+  // optimal, try 1). All values rounded to whole numbers.
+  const STAR_BASE = { 1: 50, 2: 80, 3: 120, 4: 180, 5: 260 };
+  const OPTIMAL_BONUS = 1.5;
+
+  function score(stopsUsed, attemptsUsed, puzzleArg) {
+    const p = puzzleArg || puzzle || {};
+    const stars = STAR_BASE[p.stars] ? p.stars : 3; // default to Medium
+    const base = STAR_BASE[stars];
+    const attempt = (MAX_ATTEMPTS + 1 - attemptsUsed) / MAX_ATTEMPTS;
+    const shortestStops = (p.shortest_hops || 0) - 1; // hops include the start; stops is hops-1
+    const optimal = (shortestStops >= 0 && stopsUsed === shortestStops)
+      ? OPTIMAL_BONUS
+      : 1.0;
+    return Math.round(base * attempt * optimal);
   }
 
   function showResult(winFlag, stopsUsed, attemptsUsed, gaveUp) {
@@ -821,6 +857,10 @@
     showResultPanelAt("top");
     // Drop the speedrun-summary class in case a previous run left it on.
     if (resultPanel) resultPanel.classList.remove("speedrun-summary-panel");
+    // Tear down the speedrun history list (if any) — the regular round
+    // result panel doesn't show it.
+    const oldHistory = document.getElementById("speedrun-history-block");
+    if (oldHistory) oldHistory.remove();
     // Hide the give-up button — the round is done. The "View result"
     // button takes its place once the panel is dismissed.
     if (giveUpBtn) giveUpBtn.style.display = "none";
@@ -911,6 +951,7 @@
     speedrunModeKey = modeKey;
     speedrunScore = 0;
     speedrunSolves = 0;
+    speedrunHistory = [];
     speedrunStartTime = 0;
     // Deadline isn't armed until the player clicks Start — set to a sentinel
     // so the auto-advance path's "Date.now() >= deadline" check can't fire.
@@ -1045,6 +1086,9 @@
     // Show the shortest route for the LAST puzzle the player saw —
     // educational closure on whatever stumped them at the buzzer.
     renderShortestRoutesBlock();
+    // Render the compressed list of every solved route + its solution
+    // immediately after the shortest-route block.
+    renderSpeedrunHistoryBlock();
 
     // Lock controls.
     submitBtn.disabled = true;
@@ -1190,6 +1234,49 @@
     }
   }
 
+  // Render the compact "you solved N routes" list inside the speedrun
+  // summary panel. Each entry shows: start → dest, the player's full
+  // path through the puzzle, the points earned, and the attempts used.
+  // Click any code to reveal its long-form name (same delegation pattern
+  // as renderShortestRoutesBlock).
+  function renderSpeedrunHistoryBlock() {
+    if (!resultPanel) return;
+    let block = document.getElementById("speedrun-history-block");
+    if (!block) {
+      block = document.createElement("div");
+      block.id = "speedrun-history-block";
+      block.className = "solution-block speedrun-history-block";
+      block.addEventListener("click", (e) => {
+        const code = e.target.closest(".sol-code");
+        if (!code) return;
+        const airport = code.parentElement;
+        if (airport && airport.classList.contains("sol-airport")) {
+          airport.classList.toggle("expanded");
+        }
+      });
+      const actions = resultPanel.querySelector(".result-actions");
+      resultPanel.insertBefore(block, actions);
+    }
+    if (!speedrunHistory.length) {
+      block.innerHTML = `<div class="solution-label">No puzzles banked this run.</div>`;
+      return;
+    }
+    const items = speedrunHistory.map((entry, i) => {
+      const route = fmtRoute(entry.path);
+      const tries = entry.attemptsUsed === 1
+        ? "1 try"
+        : `${entry.attemptsUsed} tries`;
+      return `<div class="speedrun-history-row">
+                <span class="speedrun-history-num">${i + 1}.</span>
+                <span class="speedrun-history-route">${route}</span>
+                <span class="speedrun-history-meta">+${entry.points} pts · ${tries}</span>
+              </div>`;
+    }).join("");
+    block.innerHTML =
+      `<div class="solution-label">Routes you solved (${speedrunHistory.length}):</div>
+       <div class="speedrun-history-list">${items}</div>`;
+  }
+
   // Compute every shortest path from start→dest. Returns:
   //   { count: total_count, routes: [[code, ...], ...] }
   // `routes` is capped at maxEnum entries; `count` is always exact (computed
@@ -1305,7 +1392,7 @@
   function buildSpeedrunShare() {
     const cfg = MODE_SPEEDRUN[speedrunModeKey] || {};
     const variant = cfg.label || "Speedrun";
-    return `JetSets ${variant} — ${speedrunScore} pts in 60s, ${speedrunSolves} solved`;
+    return `JetSets ${variant} — ${speedrunScore} pts in 90s, ${speedrunSolves} solved`;
   }
 
   shareBtn.addEventListener("click", () => {

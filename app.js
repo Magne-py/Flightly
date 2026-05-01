@@ -200,8 +200,19 @@
     const A = window.AIRPORTS;
     learnSuggestions.innerHTML = codes.map((c, i) => {
       const a = A[c];
+      // Lead with CITY, not the long airport name. A lot of OpenFlights
+      // names contain hyphens or qualifiers (e.g. "Berlin-Tegel Airport",
+      // "Aspen-Pitkin Co/Sardy Field") which can read like a city-pair
+      // route at a glance. The city is the most recognisable identifier
+      // anyway — we keep the airport name as a smaller subline.
+      const cityLabel = a.city || a.name || "";
+      const subName = a.name && a.city && a.name !== a.city ? a.name : "";
       return `<div class="suggestion${i === learnIndex ? " highlighted" : ""}" data-code="${c}">
-        <span><span class="s-code">${c}</span><span class="s-city"> · ${a.name || a.city}</span></span>
+        <span class="s-main">
+          <span class="s-code">${c}</span>
+          <span class="s-city"> · ${cityLabel}</span>
+          ${subName ? `<span class="s-name">${subName}</span>` : ""}
+        </span>
         <span class="s-country">${a.country || ""}</span>
       </div>`;
     }).join("");
@@ -306,40 +317,26 @@
       </div>
     `;
 
-    // Row click → highlight the corresponding dot on the globe (and label
-    // it). Mirrors clicking the dot on the map directly.
+    // Row click → re-pivot the Learn view onto the clicked airport so the
+    // user can step outward through the network. Mirrors clicking the
+    // matching dot on the globe.
     const tbody = learnInfo.querySelector("#connections-tbody");
     if (tbody) {
       tbody.addEventListener("click", (e) => {
         const tr = e.target.closest("tr[data-code]");
         if (!tr) return;
         const c = tr.getAttribute("data-code");
-        if (!c || !window.JetSetsGlobe) return;
-        // Toggle highlight on the row + on the globe marker.
-        tbody.querySelectorAll("tr.selected").forEach((el) => {
-          if (el !== tr) el.classList.remove("selected");
-        });
-        const willSelect = !tr.classList.contains("selected");
-        tr.classList.toggle("selected", willSelect);
-        window.JetSetsGlobe.selectHubNeighbor(willSelect ? c : null);
+        if (!c) return;
+        selectLearnAirport(c);
       });
     }
   }
 
-  // Sync table row highlight when the user clicks a dot on the map.
-  document.addEventListener("hub-neighbor-select", (e) => {
+  // Globe dispatches "hub-pivot" when the user clicks a neighbor dot on
+  // the map. We treat that as a search for that airport — pivot the hub.
+  document.addEventListener("hub-pivot", (e) => {
     const code = e.detail && e.detail.code;
-    const tbody = document.getElementById("connections-tbody");
-    if (!tbody) return;
-    tbody.querySelectorAll("tr.selected").forEach((el) => el.classList.remove("selected"));
-    if (code) {
-      const tr = tbody.querySelector(`tr[data-code="${code}"]`);
-      if (tr) {
-        tr.classList.add("selected");
-        // Scroll the selected row into view inside the connections list.
-        try { tr.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {}
-      }
-    }
+    if (code) selectLearnAirport(code);
   });
 
   // Wire the search input

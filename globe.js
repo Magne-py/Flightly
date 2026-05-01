@@ -220,18 +220,13 @@
     halo.setAttribute("data-iata", code);
     halo.addEventListener("click", (e) => {
       e.stopPropagation();
-      // Toggle selection — clicking the same dot again hides the label.
-      if (state.hub) {
-        const newSel = state.hub.selectedNeighbor === code ? null : code;
-        state.hub.selectedNeighbor = newSel;
-        render();
-        // Notify listeners (the connections table) so the row highlight
-        // stays in sync with the map.
-        if (svg) {
-          svg.dispatchEvent(new CustomEvent("hub-neighbor-select", {
-            detail: { code: newSel }, bubbles: true,
-          }));
-        }
+      // Clicking a neighbor dot pivots the Learn view onto that airport so
+      // the user can keep exploring outward. The app-level listener calls
+      // selectLearnAirport which redraws the hub and connections panel.
+      if (svg) {
+        svg.dispatchEvent(new CustomEvent("hub-pivot", {
+          detail: { code }, bubbles: true,
+        }));
       }
     });
     svg.appendChild(halo);
