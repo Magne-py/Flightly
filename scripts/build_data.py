@@ -175,7 +175,7 @@ def shortest_hops(adj, a, b, limit=6):
 def build_puzzles(airports, adj, n_per_bucket=None):
     if n_per_bucket is None:
         n_per_bucket = {2: 60, 3: 120, 4: 140, 5: 80}
-    random.seed(42)
+    random.seed(2026)
     codes = list(airports.keys())
     # Weighted sampling: favor tier 1/2 airports as puzzle endpoints
     # so daily puzzles feature airports players will recognize.

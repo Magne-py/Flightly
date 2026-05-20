@@ -138,7 +138,7 @@ MAX_ENUM = 500
 TARGET_PER_CONTINENT = 80          # rough cap; smaller continents get fewer
 MIN_HOPS = 2                        # require at least 1 stop
 MAX_HOPS = 4
-SEED = 42
+SEED = 2026
 
 
 # ---------- 2. Helpers (BFS, DP, scoring) ----------------------------------
