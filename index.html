@@ -17,6 +17,7 @@
     --yellow: #e9c13e;
     --orange: #e67e2b;
     --red: #d4504c;
+    --purple: #a371e3;
     --neutral: #304866;
   }
   * { box-sizing: border-box; }
@@ -229,7 +230,14 @@
   .cell.yellow     { background: var(--yellow);     border-color: var(--yellow);     color: #111; }
   .cell.orange     { background: var(--orange);     border-color: var(--orange);     color: #fff; }
   .cell.red        { background: var(--red);        border-color: var(--red);        color: #fff; }
-  .cell.green .city, .cell.orange .city, .cell.red .city { color: rgba(255,255,255,0.8); }
+  /* Purple = the best possible route (shortest hops AND fewest km flown).
+     A subtle inner ring lifts it off the green-row baseline so the
+     achievement reads instantly. */
+  .cell.purple     {
+    background: var(--purple); border-color: var(--purple); color: #fff;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.18);
+  }
+  .cell.green .city, .cell.orange .city, .cell.red .city, .cell.purple .city { color: rgba(255,255,255,0.8); }
   .cell.yellow .city { color: rgba(0,0,0,0.65); }
 
   .input-row {
@@ -353,6 +361,18 @@
   }
   .result-stats span { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
   .result-stats strong { color: var(--text); font-size: 13px; font-weight: 700; }
+  /* "Best route" badge — sits inside the result-stats pill row whenever
+     the player solved on the absolute fewest-km shortest path. */
+  .result-stats .pill-best {
+    background: var(--purple); color: #fff;
+    padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  /* When the round is a best-path win, lift the panel border + heading
+     to purple so the visual achievement extends beyond the cells. */
+  .result-panel.best-path { border-color: var(--purple); }
+  .result-panel.best-path h2 { color: var(--purple); }
 
   .result-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .result-actions .btn { padding: 7px 12px; font-size: 12px; }
@@ -371,6 +391,18 @@
   .solution-label { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
   .solution-count { color: var(--accent); text-decoration: underline; cursor: pointer; font-weight: 600; margin-left: 4px; }
   .solution-count.solo { color: var(--muted); text-decoration: none; cursor: default; font-weight: 500; }
+  /* "best: 12,840 km" tag next to the shortest-route label — the target
+     a player has to hit to earn the purple win. */
+  .solution-bestkm {
+    color: var(--purple); font-weight: 700; font-size: 11px;
+    letter-spacing: 0.4px; margin-left: 4px;
+  }
+  /* Per-route km label — "(3,124 km)" appended after each shortest-route
+     leg so the player can compare alternates by total distance flown. */
+  .solution-route .route-km {
+    color: var(--muted); font-size: 12px; font-weight: 500;
+    margin-left: 2px; white-space: nowrap;
+  }
   .solution-route { color: var(--text); font-size: 14px; line-height: 1.85; }
   .solution-route .sol-airport {
     display: inline-block; padding: 1px 6px; margin: 0 1px;
@@ -415,6 +447,13 @@
   .speedrun-history-meta {
     color: var(--muted); font-size: 12px; flex-shrink: 0; white-space: nowrap;
   }
+  /* Mark best-route solves inside a speedrun summary so the player can
+     scan their run for purple wins. */
+  .speedrun-history-row.best .speedrun-history-route { color: var(--purple); }
+  .speedrun-history-meta .sh-best {
+    color: var(--purple); font-weight: 700;
+    text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;
+  }
   .solution-num { color: var(--muted); margin-right: 6px; font-weight: 600; min-width: 24px; display: inline-block; }
   .solution-more { color: var(--muted); font-size: 12px; padding: 6px 0; font-style: italic; }
 
@@ -449,6 +488,7 @@
   .swatch.yellow { background: var(--yellow); }
   .swatch.orange { background: var(--orange); }
   .swatch.red { background: var(--red); }
+  .swatch.purple { background: var(--purple); }
   /* Numbered swatch — used in the "How difficulty is set" panel where the
      factors are sequential rather than colored. */
   .swatch-num {
@@ -813,6 +853,7 @@
   .ge-cell.yellow     { background: var(--yellow);     color: #111; border-color: var(--yellow); }
   .ge-cell.orange     { background: var(--orange);     color: #fff; border-color: var(--orange); }
   .ge-cell.red        { background: var(--red);        color: #fff; border-color: var(--red); }
+  .ge-cell.purple     { background: var(--purple);     color: #fff; border-color: var(--purple); }
   .grade-example-text { margin: 0; line-height: 1.55; color: var(--text); font-size: 13px; }
   .grade-example-text b { color: var(--accent); }
   .grade-example-text i { color: var(--muted); font-style: normal; font-weight: 600; margin-right: 2px; }
@@ -1080,6 +1121,10 @@
         <div class="swatch red"></div>
         <div><b>Red</b></div>
         <div>No flight exists from the previous airport, or no onward path reaches the destination from here.</div>
+
+        <div class="swatch purple"></div>
+        <div><b>Purple</b></div>
+        <div>The absolute best possible route — shortest hops <i>and</i> the fewest kilometres flown across all shortest-hop options. Only one purple win exists per puzzle, and it pays a 2.0× scoring bonus.</div>
       </div>
 
       <details class="legend about-legend">
@@ -1106,6 +1151,14 @@
               <span class="ge-cell green">SYD</span>
             </div>
             <p class="grade-example-text"><b>An all-green row that's longer than the shortest path.</b> Once you complete the journey, every filled cell is repainted green — the win is a win. The result panel will tell you the shortest possible was fewer stops, so you can chase a higher score next round, but the row itself reads as "you got there." <i>Fix:</i> compare against the shortest route shown in the result panel and try to drop a stop next time.</p>
+          </div>
+
+          <div class="grade-example">
+            <div class="grade-example-row">
+              <span class="ge-cell purple">DXB</span>
+              <span class="ge-cell purple">SIN</span>
+            </div>
+            <p class="grade-example-text"><b>An all-purple row.</b> You hit the puzzle's shortest hop count <i>and</i> picked the route with the fewest kilometres flown — the single tightest path through the network. Multiple shortest-hop routes can exist, but only one (or a handful tied for fewest km) trigger the purple win and the 2.0× scoring bonus.</p>
           </div>
 
           <div class="grade-example">
@@ -1169,8 +1222,9 @@
         <li><b>Difficulty base</b> — 1★ pays 50, 2★ pays 80, 3★ pays 120, 4★ pays 180, 5★ pays 260. Harder puzzles are worth more headline points.</li>
         <li><b>Attempt curve</b> — full credit on try 1, then a smooth linear taper down to 1/6 credit on try 6. Solve faster, score more.</li>
         <li><b>Optimal-route bonus</b> — match the shortest hop count exactly and the payout is multiplied by <b>1.5×</b>. A win that takes extra stops still counts, just without the bonus.</li>
+        <li><b>Best-route bonus (purple)</b> — match the shortest hop count <i>and</i> fly the fewest possible kilometres (the single tightest route across all shortest-hop options) and the payout is multiplied by <b>2.0×</b>. The cells light up purple, and only this exact route earns the tier.</li>
       </ul>
-      <p class="muted">Worked examples: a 5★ Extreme nailed in 1 try with the optimal route earns <b>390 pts</b>. A 3★ Medium solved on try 2 with the optimal route earns <b>150 pts</b>. A 1★ Simple solved on try 6 without the optimal route earns <b>8 pts</b>. Speedrun stacks every solve into a running total across the 90-second window.</p>
+      <p class="muted">Worked examples: a 5★ Extreme nailed in 1 try with the optimal route earns <b>390 pts</b>. The same puzzle solved in 1 try on the best (purple) route earns <b>520 pts</b>. A 3★ Medium solved on try 2 with the optimal route earns <b>150 pts</b>. A 1★ Simple solved on try 6 without the optimal route earns <b>8 pts</b>. Speedrun stacks every solve into a running total across the 90-second window.</p>
     </div>
 
     <div class="about-card">

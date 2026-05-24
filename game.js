@@ -114,6 +114,9 @@
   let shortestPathAirports = null;
   // Per-slot sets: airport must appear at slot index i on at least one shortest path
   let shortestPathBySlot = null;
+  // Minimum total kilometres flown across all shortest-hop paths for the
+  // current puzzle. Used to detect the "best route" purple win tier.
+  let optimalKm = null;
 
   // ---------- Speedrun state ----------
   // A speedrun is a 90-second timed run of consecutive puzzles. Solving a
@@ -350,6 +353,30 @@
     return Object.assign({ id: `${continent} #${idx + 1}` }, pool[idx]);
   }
 
+  // ---------- Geographic helpers ----------
+  // Great-circle distance in kilometres between two lat/lon points.
+  // Used to compare candidate shortest-hop routes by total flight distance —
+  // the route with the fewest km flown wins the purple "best route" tier.
+  const EARTH_KM = 6371;
+  function haversineKm(lat1, lon1, lat2, lon2) {
+    const toRad = (d) => d * Math.PI / 180;
+    const φ1 = toRad(lat1), φ2 = toRad(lat2);
+    const dφ = toRad(lat2 - lat1), dλ = toRad(lon2 - lon1);
+    const a = Math.sin(dφ / 2) * Math.sin(dφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) * Math.sin(dλ / 2);
+    return 2 * EARTH_KM * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+  // Sum great-circle distances along a path of IATA codes.
+  function pathKm(route) {
+    let total = 0;
+    for (let i = 0; i < route.length - 1; i++) {
+      const A = AIRPORTS[route[i]], B = AIRPORTS[route[i + 1]];
+      if (!A || !B) return Infinity;
+      total += haversineKm(A.lat, A.lon, B.lat, B.lon);
+    }
+    return total;
+  }
+
   // BFS from a single source. Returns a distance map {iata: hops}.
   // Walks ACTIVE_ROUTES so continent modes correctly ignore intercontinental
   // hops.
@@ -397,7 +424,39 @@
       }
       slots.push(setAtK);
     }
-    return { onPath, slots, total, distFromDest };
+    // Min-km DP over the shortest-paths DAG. Walk nodes in BFS-distance
+    // order so each node's predecessors are already resolved when we
+    // compute its own minKm. Predecessors of a node N at distance d are
+    // any neighbour P with distFromStart[P] === d-1 AND on a shortest path.
+    const minKmTo = { [start]: 0 };
+    if (total !== undefined) {
+      const onPathByDist = [];
+      for (const iata of onPath) {
+        const d = distFromStart[iata];
+        if (!onPathByDist[d]) onPathByDist[d] = [];
+        onPathByDist[d].push(iata);
+      }
+      for (let d = 1; d <= total; d++) {
+        const layer = onPathByDist[d] || [];
+        for (const node of layer) {
+          let best = Infinity;
+          const nbs = ACTIVE_ROUTES[node] || [];
+          for (let i = 0; i < nbs.length; i++) {
+            const p = nbs[i];
+            if (distFromStart[p] === d - 1 && onPath.has(p) && minKmTo[p] !== undefined) {
+              const A = AIRPORTS[p], B = AIRPORTS[node];
+              if (!A || !B) continue;
+              const km = haversineKm(A.lat, A.lon, B.lat, B.lon);
+              const cand = minKmTo[p] + km;
+              if (cand < best) best = cand;
+            }
+          }
+          if (best < Infinity) minKmTo[node] = best;
+        }
+      }
+    }
+    const optimalKm = minKmTo[dest];
+    return { onPath, slots, total, distFromDest, optimalKm };
   }
 
   // ---------- Autocomplete ----------
@@ -688,6 +747,7 @@
     shortestPathAirports = analysis.onPath;
     shortestPathBySlot = analysis.slots;
     distToDest = analysis.distFromDest;
+    optimalKm = analysis.optimalKm;
 
     input.value = "";
     closeSuggestions();
@@ -751,14 +811,33 @@
     for (let i = 0; i < currentRow.length; i++) {
       rowData[i] = { code: currentRow[i], color: graded.colors[i] };
     }
+    // Detect the "best route" purple tier: shortest-hops match AND the
+    // player's total km equals the puzzle's minimum km across all
+    // shortest-hop paths. Done before the green repaint so we can swap
+    // the fill color in one pass below. Tolerance of ~0.5 km absorbs
+    // floating-point drift in haversine sums. We always compute playerKm
+    // when the row connects so the result panel can show the km gap to
+    // the best route, even for non-purple wins.
+    let isBestPath = false;
+    let playerKm = null;
+    if (graded.fullyConnects) {
+      playerKm = pathKm([puzzle.start, ...currentRow, puzzle.dest]);
+      const matchedShortest = graded.stopsUsed === (puzzle.shortest_hops - 1);
+      if (matchedShortest && optimalKm != null && isFinite(optimalKm)) {
+        if (Math.abs(playerKm - optimalKm) < 0.5) isBestPath = true;
+      }
+    }
     // If this row connects start→dest, repaint every filled cell green so
     // the win reads as a complete success — even if the player took more
     // stops than the shortest path. (We used to paint these light-green to
     // signal "valid but not optimal", but the extra color was more confusing
     // than helpful — green simply means "you finished".)
+    // Best-path wins paint purple instead — a louder celebration for the
+    // single tightest route through the network.
     if (graded.fullyConnects) {
+      const fillColor = isBestPath ? "purple" : "green";
       for (let i = 0; i < rowData.length; i++) {
-        if (rowData[i]) rowData[i].color = "green";
+        if (rowData[i]) rowData[i].color = fillColor;
       }
     }
     attempts.push(rowData);
@@ -778,7 +857,7 @@
         // Bank the score and roll into the next puzzle. The countdown
         // does NOT reset between puzzles — same 90s clock for the whole
         // run.
-        const earned = score(graded.stopsUsed, attempts.length);
+        const earned = score(graded.stopsUsed, attempts.length, puzzle, isBestPath);
         speedrunScore += earned;
         speedrunSolves += 1;
         // Capture this puzzle for the end-of-run summary. The path is
@@ -792,6 +871,7 @@
           path: [puzzle.start, ...intermediates, puzzle.dest],
           attemptsUsed: attempts.length,
           points: earned,
+          bestPath: isBestPath,
         });
         updateSpeedrunHud();
         if (Date.now() >= speedrunDeadline) {
@@ -804,7 +884,7 @@
           }, 350);
         }
       } else {
-        showResult(true, graded.stopsUsed, attempts.length);
+        showResult(true, graded.stopsUsed, attempts.length, false, isBestPath, playerKm);
       }
     } else if (attempts.length >= MAX_ATTEMPTS) {
       finished = true;
@@ -838,25 +918,65 @@
   // optimal, try 1). All values rounded to whole numbers.
   const STAR_BASE = { 1: 50, 2: 80, 3: 120, 4: 180, 5: 260 };
   const OPTIMAL_BONUS = 1.5;
+  const BEST_PATH_BONUS = 2.0;
 
-  function score(stopsUsed, attemptsUsed, puzzleArg) {
+  function score(stopsUsed, attemptsUsed, puzzleArg, isBestPath) {
     const p = puzzleArg || puzzle || {};
     const stars = STAR_BASE[p.stars] ? p.stars : 3; // default to Medium
     const base = STAR_BASE[stars];
     const attempt = (MAX_ATTEMPTS + 1 - attemptsUsed) / MAX_ATTEMPTS;
     const shortestStops = (p.shortest_hops || 0) - 1; // hops include the start; stops is hops-1
-    const optimal = (shortestStops >= 0 && stopsUsed === shortestStops)
-      ? OPTIMAL_BONUS
-      : 1.0;
-    return Math.round(base * attempt * optimal);
+    const matchedShortest = shortestStops >= 0 && stopsUsed === shortestStops;
+    // Best-path supersedes the optimal bonus — it implies optimal hops AND
+    // the minimum km. 2.0× headline payout for the absolute tightest route.
+    const bonus = isBestPath ? BEST_PATH_BONUS
+                : matchedShortest ? OPTIMAL_BONUS
+                : 1.0;
+    return Math.round(base * attempt * bonus);
   }
 
-  function showResult(winFlag, stopsUsed, attemptsUsed, gaveUp) {
+  // Produce a positive heading + status-bar pair for a winning round,
+  // describing how many km off the best (purple) route the player was.
+  // Tiers tighten the language as the gap narrows: a 100-km miss reads
+  // as "razor-thin", a 4,000-km miss reads as "route complete". When
+  // we don't have an optimal-km figure (rare edge case) we fall back to
+  // a neutral "Route complete!" so we never lie about the gap.
+  function buildWinCopy(isBestPath, playerKm) {
+    if (isBestPath) {
+      return {
+        heading: "Perfect — the absolute best route!",
+        status: "Best route — solved!",
+      };
+    }
+    const haveKm = optimalKm != null && isFinite(optimalKm)
+                && playerKm != null && isFinite(playerKm);
+    if (!haveKm) {
+      return { heading: "Route complete!", status: "Solved!" };
+    }
+    const kmOver = Math.max(0, Math.round(playerKm - optimalKm));
+    const kmStr = kmOver.toLocaleString();
+    let descriptor;
+    if (kmOver < 100)        descriptor = "Razor-thin";
+    else if (kmOver < 500)   descriptor = "So close";
+    else if (kmOver < 1500)  descriptor = "Sharp routing";
+    else if (kmOver < 4000)  descriptor = "Solid solve";
+    else                     descriptor = "Route complete";
+    return {
+      heading: `${descriptor} — ${kmStr} km off the best route.`,
+      status: `Solved! ${kmStr} km off the best route.`,
+    };
+  }
+
+  function showResult(winFlag, stopsUsed, attemptsUsed, gaveUp, isBestPath, playerKm) {
     // First show always lands above the grid — score & shortest-route
     // reveal sit on top of the player's colored cells.
     showResultPanelAt("top");
     // Drop the speedrun-summary class in case a previous run left it on.
     if (resultPanel) resultPanel.classList.remove("speedrun-summary-panel");
+    // Best-path wins get an extra class so we can theme the panel border /
+    // heading purple. Strip both first so a follow-up regular win clears
+    // the previous round's purple styling.
+    if (resultPanel) resultPanel.classList.remove("best-path");
     // Tear down the speedrun history list (if any) — the regular round
     // result panel doesn't show it.
     const oldHistory = document.getElementById("speedrun-history-block");
@@ -865,17 +985,22 @@
     // button takes its place once the panel is dismissed.
     if (giveUpBtn) giveUpBtn.style.display = "none";
     if (winFlag) {
-      const pts = score(stopsUsed, attemptsUsed);
-      const matched = stopsUsed === (puzzle.shortest_hops - 1);
-      resultHeading.textContent = matched
-        ? "You nailed the shortest route!"
-        : "Route complete!";
+      const pts = score(stopsUsed, attemptsUsed, puzzle, isBestPath);
+      const copy = buildWinCopy(isBestPath, playerKm);
+      resultHeading.textContent = copy.heading;
+      if (isBestPath && resultPanel) resultPanel.classList.add("best-path");
       // Compact pills: "<strong>2</strong> stops · <strong>3/6</strong> tries · <strong>12</strong> pts"
+      // Purple wins also get a "best route" badge so the achievement is
+      // visible at a glance from the pills row.
+      const badge = isBestPath
+        ? `<span class="pill-best">Best route</span>`
+        : "";
       resultStats.innerHTML =
         `<span><strong>${stopsUsed}</strong>stops</span>` +
         `<span><strong>${attemptsUsed}/${MAX_ATTEMPTS}</strong>tries</span>` +
-        `<span><strong>${pts}</strong>pts</span>`;
-      statusBar.textContent = "Solved!";
+        `<span><strong>${pts}</strong>pts</span>` +
+        badge;
+      statusBar.textContent = copy.status;
       statusBar.className = "status-bar win";
     } else {
       resultHeading.textContent = gaveUp ? "You gave up — here's the answer." : "Out of attempts.";
@@ -1184,24 +1309,39 @@
       ? `<a class="solution-count" id="solution-count" href="#"
             title="Click to see all ${count} shortest routes">(${count})</a>`
       : `<span class="solution-count solo">(1)</span>`;
+    // Best-route km: the minimum km across every shortest-hop path. Shown
+    // alongside the route count so the player can see what target they
+    // were aiming at for the purple win tier.
+    const bestKmHtml = (optimalKm != null && isFinite(optimalKm))
+      ? `<span class="solution-bestkm" title="Fewest kilometres flown across all shortest routes">best: ${Math.round(optimalKm).toLocaleString()} km</span>`
+      : "";
     // Slot counts: how many distinct airports are valid at each intermediate
     // slot across shortest routes — annotated next to each leg of the
     // primary solution so the player can spot which slot was the hardest
     // (small count = bottleneck leg).
     const slotCounts = (shortestPathBySlot || []).map((s) => s.size);
-    // Primary route shares a row with its label — "Shortest 2-stop route (3): JFK (3) → LAX (14)".
+    // Decorate every enumerated route with its great-circle km, then sort
+    // by km ascending. After sorting, routesWithKm[0] is the tightest path
+    // through the network — i.e. the puzzle's purple "best route" target —
+    // so it doubles as the primary route shown inline.
+    const routesWithKm = routes.map((r) => ({ route: r, km: pathKm(r) }));
+    routesWithKm.sort((a, b) => a.km - b.km);
+    const fmtKm = (km) => `<span class="route-km">(${Math.round(km).toLocaleString()} km)</span>`;
+    const primaryRoute = routesWithKm[0].route;
+    const primaryKm = routesWithKm[0].km;
+    // Primary route shares a row with its label — "Shortest 2-stop route (3): JFK (3) → LAX (14) (12,840 km)".
     block.innerHTML =
       `<div class="solution-row">
-         <span class="solution-label">Shortest ${stopsLabel} ${counterHtml}:</span>
-         <span class="solution-route" id="solution-primary">${fmtRoute(routes[0], slotCounts)}</span>
+         <span class="solution-label">Shortest ${stopsLabel} ${counterHtml} ${bestKmHtml}:</span>
+         <span class="solution-route" id="solution-primary">${fmtRoute(primaryRoute, slotCounts)} ${fmtKm(primaryKm)}</span>
        </div>
        <div class="solution-list" id="solution-list" style="display:none"></div>`;
     // Highlight the chosen primary shortest route on the globe so the player
     // can see exactly where it goes geographically.
     if (window.JetSetsGlobe) {
-      JetSetsGlobe.setSolution(routes[0]);
+      JetSetsGlobe.setSolution(primaryRoute);
     }
-    lastSolutionRoute = routes[0].slice();
+    lastSolutionRoute = primaryRoute.slice();
     if (count > 1) {
       const link = document.getElementById("solution-count");
       const list = document.getElementById("solution-list");
@@ -1211,15 +1351,17 @@
         const isHidden = list.style.display === "none";
         if (isHidden) {
           let html = "";
-          // Render every enumerated route (we already capped at 50)
-          for (let i = 0; i < routes.length; i++) {
+          // Render every enumerated route in km-ascending order so the
+          // tightest paths sit at the top of the list.
+          for (let i = 0; i < routesWithKm.length; i++) {
+            const { route, km } = routesWithKm[i];
             html += `<div class="solution-route">
                        <span class="solution-num">${i + 1}.</span>
-                       ${fmtRoute(routes[i])}
+                       ${fmtRoute(route)} ${fmtKm(km)}
                      </div>`;
           }
-          if (count > routes.length) {
-            html += `<div class="solution-more">…and ${count - routes.length} more not shown</div>`;
+          if (count > routesWithKm.length) {
+            html += `<div class="solution-more">…and ${count - routesWithKm.length} more not shown</div>`;
           }
           list.innerHTML = html;
           list.style.display = "block";
@@ -1266,10 +1408,11 @@
       const tries = entry.attemptsUsed === 1
         ? "1 try"
         : `${entry.attemptsUsed} tries`;
-      return `<div class="speedrun-history-row">
+      const bestTag = entry.bestPath ? ` · <span class="sh-best">best route</span>` : "";
+      return `<div class="speedrun-history-row${entry.bestPath ? " best" : ""}">
                 <span class="speedrun-history-num">${i + 1}.</span>
                 <span class="speedrun-history-route">${route}</span>
-                <span class="speedrun-history-meta">+${entry.points} pts · ${tries}</span>
+                <span class="speedrun-history-meta">+${entry.points} pts · ${tries}${bestTag}</span>
               </div>`;
     }).join("");
     block.innerHTML =
@@ -1369,7 +1512,7 @@
 
   // ---------- Share ----------
   function buildShare() {
-    const emojiMap = { green: "🟩", yellow: "🟨", orange: "🟧", red: "🟥", "": "⬜" };
+    const emojiMap = { green: "🟩", purple: "🟪", yellow: "🟨", orange: "🟧", red: "🟥", "": "⬜" };
     const lines = [];
     const header = won
       ? `JetSets ${puzzle.id} — solved in ${attempts.length}/${MAX_ATTEMPTS}`
