@@ -1319,7 +1319,14 @@
     // slot across shortest routes — annotated next to each leg of the
     // primary solution so the player can spot which slot was the hardest
     // (small count = bottleneck leg).
-    const slotCounts = (shortestPathBySlot || []).map((s) => s.size);
+    // Pass the full per-slot airport sets (not just sizes) so the (N)
+    // badges can show the actual IATA codes on hover via the native
+    // title tooltip. fmtRoute reads .size for the badge text and .codes
+    // for the tooltip.
+    const slotInfo = (shortestPathBySlot || []).map((s) => ({
+      size: s.size,
+      codes: Array.from(s).sort(),
+    }));
     // Decorate every enumerated route with its great-circle km, then sort
     // by km ascending. After sorting, routesWithKm[0] is the tightest path
     // through the network — i.e. the puzzle's purple "best route" target —
@@ -1333,7 +1340,7 @@
     block.innerHTML =
       `<div class="solution-row">
          <span class="solution-label">Shortest ${stopsLabel} ${counterHtml} ${bestKmHtml}:</span>
-         <span class="solution-route" id="solution-primary">${fmtRoute(primaryRoute, slotCounts)} ${fmtKm(primaryKm)}</span>
+         <span class="solution-route" id="solution-primary">${fmtRoute(primaryRoute, slotInfo)} ${fmtKm(primaryKm)}</span>
        </div>
        <div class="solution-list" id="solution-list" style="display:none"></div>`;
     // Highlight the chosen primary shortest route on the globe so the player
@@ -1491,20 +1498,37 @@
   // Render the route as ONLY its intermediate stops (the airports that go in
   // the grid). The start and destination are already shown in the puzzle
   // header, so showing them again here would be redundant.
-  // `slotCounts` (optional) is an array of "number of distinct airports
-  // valid at slot k across all enumerated shortest routes" — when present,
-  // we annotate each intermediate with `(N)` so the player can see which
-  // leg is the hardest one to guess (smallest N).
-  function fmtRoute(route, slotCounts) {
+  // `slotInfo` (optional) is an array of {size, codes} — when present, each
+  // intermediate is annotated with `(N)` showing how many airports can fill
+  // that slot on a shortest route. Hovering the badge reveals the actual
+  // IATA codes via the native tooltip (capped so the tooltip stays usable
+  // when a slot has dozens of valid airports).
+  const SLOT_TOOLTIP_CAP = 30;
+  function fmtRoute(route, slotInfo) {
     const intermediates = route.slice(1, -1);
     if (intermediates.length === 0) {
       return `<span class="sol-direct">Direct flight — no intermediate stops.</span>`;
     }
     return intermediates.map((code, i) => {
       const html = fmtAirportToggle(code);
-      const n = slotCounts && slotCounts[i];
-      if (n != null) {
-        return html + ` <span class="sol-slot-count" title="${n} airport${n === 1 ? "" : "s"} can fill this slot on a shortest route">(${n})</span>`;
+      const info = slotInfo && slotInfo[i];
+      if (info != null) {
+        const n = info.size;
+        const codes = info.codes || [];
+        // Build the hover tooltip: header line + comma-separated codes,
+        // truncated if the slot has more options than will fit cleanly.
+        const shown = codes.slice(0, SLOT_TOOLTIP_CAP);
+        const overflow = codes.length > SLOT_TOOLTIP_CAP
+          ? `, …+${codes.length - SLOT_TOOLTIP_CAP} more`
+          : "";
+        const header = `${n} airport${n === 1 ? "" : "s"} can fill this slot on a shortest route`;
+        const tip = codes.length
+          ? `${header}:\n${shown.join(", ")}${overflow}`
+          : header;
+        // Escape double-quotes in the title attribute. IATA codes are
+        // ASCII so the codes themselves are safe; the header text is too.
+        const safe = tip.replace(/"/g, "&quot;");
+        return html + ` <span class="sol-slot-count" title="${safe}">(${n})</span>`;
       }
       return html;
     }).join(' <span class="sol-arrow">→</span> ');
