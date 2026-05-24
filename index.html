@@ -1063,10 +1063,11 @@
     <details class="legend">
       <summary>How grading works</summary>
       <div class="legend-body">
-        <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — on the shortest route &amp; in the right slot. The whole row lights up green when you complete the journey, even if you took more stops than the shortest path.</div></div>
-        <div class="legend-row"><div class="swatch yellow"></div><div><b>Yellow</b> — on the shortest route but wrong slot.</div></div>
-        <div class="legend-row"><div class="swatch orange"></div><div><b>Orange</b> — a valid onward flight that still reaches the destination, just via a longer route.</div></div>
-        <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight exists from the previous airport, or there's no onward path to the destination.</div></div>
+        <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — right airport, right slot. A finished row paints every cell green.</div></div>
+        <div class="legend-row"><div class="swatch yellow"></div><div><b>Yellow</b> — right airport, but wrong slot <i>or</i> no flight from the previous one.</div></div>
+        <div class="legend-row"><div class="swatch orange"></div><div><b>Orange</b> — flight exists from the previous airport, just not on the shortest route.</div></div>
+        <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight from the previous airport, or no onward path to the destination.</div></div>
+        <div class="legend-row"><div class="swatch purple"></div><div><b>Purple</b> — best route possible: shortest hops <i>and</i> fewest km. Pays 2.0×.</div></div>
       </div>
     </details>
 
