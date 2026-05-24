@@ -716,6 +716,16 @@
   .about-card ul { margin: 6px 0 6px 20px; padding: 0; color: var(--text); font-size: 14px; line-height: 1.6; }
   .about-card li { margin: 3px 0; }
   .about-card li b { color: var(--accent); }
+  /* Personal sign-off card at the bottom of the About page — a softer
+     border + slightly warmer body color so it reads more like a letter
+     than another technical reference card. */
+  .about-card.dev-note {
+    border-color: var(--accent);
+    background: linear-gradient(180deg, var(--panel) 0%, var(--bg-alt) 100%);
+  }
+  .about-card.dev-note h2 { color: var(--accent); }
+  .about-card.dev-note p { color: var(--text); line-height: 1.65; }
+  .about-card.dev-note a { color: var(--accent); }
   .stat-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 10px; margin-top: 10px;
@@ -1082,7 +1092,7 @@
   <div class="about-wrap">
     <div class="about-card">
       <h2>What is JetSets?</h2>
-      <p>JetSets is a daily flight-routing puzzle in the spirit of Wordle. Each round gives you two airports and asks you to chart the journey between them in as few hops as possible — using only real-world commercial flights.</p>
+      <p>JetSets is a daily flight-routing puzzle. Each round gives you two airports and asks you to chart the journey between them in as few hops as possible — using only real-world commercial flights.</p>
       <p class="muted">Type airport codes (or names, or cities) into the search bar, build a candidate route, then submit. The grading lights up each leg so you can refine the path on your next try. You have six attempts.</p>
     </div>
 
@@ -1112,7 +1122,7 @@
 
         <div class="swatch yellow"></div>
         <div><b>Yellow</b></div>
-        <div>The airport sits on a shortest route, but in a different slot than where you placed it.</div>
+        <div>The airport sits on a shortest route, but either you placed it in a slot the route doesn't use, <i>or</i> the previous airport doesn't have a direct flight to it (so the leg into yellow won't fly). The airport itself is right — what's around it isn't.</div>
 
         <div class="swatch orange"></div>
         <div><b>Orange</b></div>
@@ -1232,10 +1242,19 @@
       <ul>
         <li><b>Anchor on hubs.</b> Major airports (Heathrow, Frankfurt, Doha, Atlanta, Singapore…) connect to almost everything — guessing one early often gives you a quick yellow/green.</li>
         <li><b>Mind the geography.</b> Direct flights tend to follow great-circle paths. If your start and destination are on opposite sides of an ocean, ask which hub the airlines actually fly through.</li>
-        <li><b>Use the colors.</b> A row that's all orange tells you the path is valid but not shortest — try replacing one airport with a more-connected hub. Yellow tells you the airport is right but in the wrong slot — shift it.</li>
+        <li><b>Use the colors.</b> A row that's all orange tells you the path is valid but not shortest — try replacing one airport with a more-connected hub. Yellow tells you the airport itself is right but either in the wrong slot <i>or</i> not reachable from the previous airport — try repositioning it, or swap the airport before it.</li>
         <li><b>The Learn page is your friend.</b> Open it from the menu to explore which destinations any airport flies to.</li>
         <li><b>Try modes.</b> "By Layovers" lets you train on routes of a specific length. "By Continent" restricts the graph to a region — useful for learning a part of the world. "Cryptic" hides the map and city names for pure code-recall practice.</li>
       </ul>
+    </div>
+
+    <div class="about-card dev-note">
+      <h2>A note from the dev</h2>
+      <p>Hey, and thanks for playing. A few honest things worth sharing before you go any deeper.</p>
+      <p>The flight network powering JetSets comes from the <a href="https://openflights.org/" target="_blank" rel="noopener">OpenFlights</a> project, which hasn't been actively maintained for several years now. That means some routes are out of date — you'll occasionally hit a "no flight exists" wall on a connection real-world airlines fly today, or find a long-since-discontinued route still in the graph. I'm working on a refresh that pulls 2025 schedules from a more current source; in the meantime, treat the puzzle as a thoughtful approximation of the world's air network rather than gospel.</p>
+      <p>I built this on weekends because I wanted a geography game that rewarded learning the <i>shape</i> of global aviation — which hubs feed which regions, where the long-haul corridors run, which countries you can only reach by stitching together two unglamorous flights. The Daily is meant to be a small ritual. The Speedrun is the same idea with the safeties off. The Learn page is a quiet way to wander.</p>
+      <p>If something feels broken, a route looks wrong, or you have an idea for what would make this better — I'd love to hear it. And if you've ever found yourself thinking "ah, <i>that's</i> how you'd fly Buenos Aires to Reykjavik," then JetSets is doing its job.</p>
+      <p>Happy travels.<br/>— Ian</p>
     </div>
   </div>
 </div><!-- /#view-about -->
