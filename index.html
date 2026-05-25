@@ -878,7 +878,26 @@
     .cell { min-height: 46px; font-size: 15px; }
     .cell .code { font-size: 17px; }
     .endpoint .code { font-size: 22px; }
-    .suggestions { right: 90px; }
+    /* Stack the input row: input on its own full-width line, then the
+       three action buttons share an equal-width row below. Gives the
+       input room to display its placeholder and turns each button into
+       a thumb-friendly 44px target. */
+    .input-row { flex-wrap: wrap; gap: 8px; }
+    .input-row input {
+      flex: 1 1 100%;
+      order: -1; /* keep the input above the button row even if HTML order changes */
+    }
+    .input-row .btn {
+      flex: 1 1 0;
+      min-width: 0;
+      min-height: 44px;
+      padding: 0 8px;
+      font-size: 15px;
+    }
+    /* When the buttons wrap onto a second row, the suggestions dropdown
+       can claim the full width directly under the input rather than
+       reserving space for buttons that are no longer beside it. */
+    .suggestions { right: 0; top: 52px; }
   }
 </style>
 </head>

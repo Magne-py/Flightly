@@ -28,6 +28,14 @@
   let rotateLat = 20;  // degrees — north-tilt
   let dragging = false;
   let dragStart = null;
+  // Two-finger pinch-zoom state. pinchDist is the inter-finger distance
+  // captured at touchstart; pinchStartZoom is the zoom level at that
+  // moment. While active the pan anchor (dragStart) tracks the midpoint
+  // between the two fingers so the globe can pan and zoom simultaneously,
+  // matching the gesture model of every major mobile map app.
+  let pinchActive = false;
+  let pinchDist = 0;
+  let pinchStartZoom = 1;
 
   // Retained state so we can re-render on rotation
   let state = {
@@ -514,12 +522,42 @@
   function attachDrag() {
     if (!svg) return;
     const onDown = (e) => {
-      dragging = true;
-      const p = pointerXY(e);
-      dragStart = { x: p.x, y: p.y, lon: rotateLon, lat: rotateLat };
+      const touches = e.touches;
+      if (touches && touches.length === 2) {
+        // Two-finger gesture begins: arm pinch-zoom and anchor the pan
+        // at the midpoint between the two fingers so the globe can pan
+        // and zoom in a single combined motion.
+        pinchActive = true;
+        pinchDist = touchDistance(touches);
+        pinchStartZoom = zoom;
+        const mid = touchMidpointSvg(touches);
+        dragging = true;
+        dragStart = { x: mid.x, y: mid.y, lon: rotateLon, lat: rotateLat };
+      } else {
+        pinchActive = false;
+        dragging = true;
+        const p = pointerXY(e);
+        dragStart = { x: p.x, y: p.y, lon: rotateLon, lat: rotateLat };
+      }
       e.preventDefault();
     };
     const onMove = (e) => {
+      // Two-finger move: scale zoom by the inter-finger distance ratio
+      // and pan from the new midpoint.
+      if (pinchActive && e.touches && e.touches.length === 2) {
+        const d = touchDistance(e.touches);
+        if (pinchDist > 0) {
+          applyZoom(pinchStartZoom * (d / pinchDist));
+        }
+        const mid = touchMidpointSvg(e.touches);
+        const dx = mid.x - dragStart.x;
+        const dy = mid.y - dragStart.y;
+        const scale = 180 / WIDTH / zoom;
+        rotateLon = dragStart.lon + dx * scale;
+        rotateLat = Math.max(-80, Math.min(80, dragStart.lat - dy * scale));
+        render();
+        return;
+      }
       if (!dragging) return;
       const p = pointerXY(e);
       const dx = p.x - dragStart.x;
@@ -531,7 +569,25 @@
       rotateLat = Math.max(-80, Math.min(80, dragStart.lat - dy * scale));
       render();
     };
-    const onUp = () => { dragging = false; };
+    const onUp = (e) => {
+      const remaining = (e.touches ? e.touches.length : 0);
+      if (remaining >= 2) return; // still pinching
+      if (pinchActive && remaining === 1) {
+        // Pinch ended but one finger is still down — gracefully hand off
+        // to a single-finger pan anchored on the remaining finger so the
+        // globe doesn't jump.
+        pinchActive = false;
+        const rect = svg.getBoundingClientRect();
+        const t = e.touches[0];
+        const x = (t.clientX - rect.left) * (WIDTH / rect.width);
+        const y = (t.clientY - rect.top) * (HEIGHT / rect.height);
+        dragStart = { x, y, lon: rotateLon, lat: rotateLat };
+        return;
+      }
+      // No fingers (or mouse up) — end every gesture.
+      pinchActive = false;
+      dragging = false;
+    };
     const onWheel = (e) => {
       e.preventDefault();
       // Trackpad / wheel: smoothly scale zoom with deltaY
@@ -546,6 +602,7 @@
     svg.addEventListener("touchstart", onDown, { passive: false });
     window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend", onUp);
+    window.addEventListener("touchcancel", onUp);
     svg.addEventListener("wheel", onWheel, { passive: false });
   }
   function pointerXY(e) {
@@ -555,6 +612,23 @@
     const x = (c.clientX - rect.left) * (WIDTH / rect.width);
     const y = (c.clientY - rect.top) * (HEIGHT / rect.height);
     return { x, y };
+  }
+  // Pinch helpers — distance + midpoint between the first two touches.
+  // Midpoint is converted into SVG coordinates so it's directly comparable
+  // to dragStart.{x,y} captured by pointerXY/onDown.
+  function touchDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+  function touchMidpointSvg(touches) {
+    const rect = svg.getBoundingClientRect();
+    const cx = (touches[0].clientX + touches[1].clientX) / 2;
+    const cy = (touches[0].clientY + touches[1].clientY) / 2;
+    return {
+      x: (cx - rect.left) * (WIDTH / rect.width),
+      y: (cy - rect.top) * (HEIGHT / rect.height),
+    };
   }
 
   // ---------- Public API ----------
