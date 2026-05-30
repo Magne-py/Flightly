@@ -48,6 +48,106 @@
   .nav-menu {
     position: absolute; right: 0; top: 50%; transform: translateY(-50%);
   }
+  /* ---------- Auth chip ---------- */
+  /* Lives just left of the hamburger. Shows "Sign in" by default, then
+     swaps to the user's username with a dropdown for sign-out once
+     authenticated. */
+  .auth-wrap {
+    position: absolute; right: 52px; top: 50%; transform: translateY(-50%);
+  }
+  .auth-btn {
+    background: var(--panel); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px; padding: 8px 14px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .auth-btn:hover { border-color: var(--accent); background: var(--bg-alt); }
+  .auth-btn.signed-in { color: var(--accent); }
+  .auth-menu {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    min-width: 200px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    z-index: 30; display: none; flex-direction: column; gap: 2px;
+  }
+  .auth-menu.open { display: flex; }
+  .auth-menu-header {
+    color: var(--muted); font-size: 11px; letter-spacing: 0.5px;
+    text-transform: uppercase; padding: 6px 10px 4px;
+  }
+  .auth-menu-header strong { color: var(--text); text-transform: none; }
+  .auth-menu button {
+    background: transparent; color: var(--text); border: 0;
+    text-align: left; padding: 8px 12px; border-radius: 8px;
+    font-weight: 600; font-size: 13px; cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .auth-menu button:hover { background: var(--bg-alt); color: var(--accent); }
+  @media (max-width: 520px) {
+    /* On a phone the auth chip risks crashing into the title. Tighten
+       padding and hide the long signed-in name behind ellipsis. */
+    .auth-wrap { right: 48px; }
+    .auth-btn { padding: 6px 10px; max-width: 110px; }
+  }
+
+  /* ---------- Auth modal ---------- */
+  .auth-modal {
+    position: fixed; inset: 0;
+    background: rgba(7, 16, 28, 0.78);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100; padding: 16px;
+  }
+  .auth-modal-panel {
+    width: 100%; max-width: 420px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 16px; padding: 22px;
+    position: relative;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  }
+  .auth-modal-close {
+    position: absolute; top: 10px; right: 12px;
+    background: transparent; border: 0; color: var(--muted);
+    font-size: 24px; line-height: 1; cursor: pointer;
+    padding: 4px 8px; border-radius: 6px;
+  }
+  .auth-modal-close:hover { color: var(--accent); background: var(--bg-alt); }
+  .auth-modal-title { margin: 0 0 12px; font-size: 18px; color: var(--accent); }
+  .auth-tabs { display: flex; gap: 4px; margin: 0 0 16px; border-bottom: 1px solid var(--border); }
+  .auth-tab {
+    flex: 1 1 0; background: transparent; border: 0; padding: 8px 6px;
+    color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color 0.12s, border-color 0.12s;
+  }
+  .auth-tab:hover { color: var(--text); }
+  .auth-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .auth-form { display: flex; flex-direction: column; gap: 12px; }
+  .auth-label {
+    display: flex; flex-direction: column; gap: 4px;
+    color: var(--muted); font-size: 11px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .auth-label input {
+    background: var(--bg-alt); border: 2px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; color: var(--text); font-size: 15px; font-weight: 500;
+    outline: none; text-transform: none; letter-spacing: 0;
+  }
+  .auth-label input:focus { border-color: var(--accent); }
+  .auth-err {
+    color: var(--red); font-size: 12px; font-weight: 600;
+    min-height: 16px;
+  }
+  .auth-submit {
+    background: var(--accent); color: var(--bg); border: 0; border-radius: 10px;
+    padding: 12px 16px; font-weight: 700; font-size: 14px; cursor: pointer;
+    min-height: 44px;
+  }
+  .auth-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .auth-modal-foot {
+    margin: 14px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5;
+  }
   .nav-toggle {
     width: 40px; height: 40px; padding: 0;
     background: var(--panel); border: 1px solid var(--border);
@@ -917,6 +1017,16 @@
   <button id="title-link" class="title" type="button" aria-label="JetSets — go to daily puzzle">
     <span class="plane">&#9992;</span> JetSets
   </button>
+  <!-- Auth chip — sits to the LEFT of the hamburger. Shows "Sign in" when
+       signed out; shows the user's username with a sign-out dropdown
+       when signed in. State is owned by auth.js. -->
+  <div class="auth-wrap" id="auth-wrap">
+    <button id="auth-btn" class="auth-btn" type="button">Sign in</button>
+    <div id="auth-menu" class="auth-menu" role="menu" style="display:none">
+      <div class="auth-menu-header">Signed in as <strong id="auth-menu-user">—</strong></div>
+      <button id="auth-signout" role="menuitem">Sign out</button>
+    </div>
+  </div>
   <div class="nav-menu" id="nav-menu">
     <button id="nav-toggle" class="nav-toggle" type="button"
             aria-haspopup="true" aria-expanded="false" aria-label="Open menu">
@@ -926,6 +1036,54 @@
       <button id="nav-about" role="menuitem">About</button>
       <button id="nav-learn" role="menuitem">Learn</button>
     </div>
+  </div>
+</div>
+
+<!-- Auth modal — full-screen scrim with a centered card. Hidden by
+     default; opened from the header auth button. -->
+<div id="auth-modal" class="auth-modal" role="dialog" aria-modal="true"
+     aria-labelledby="auth-modal-title" style="display:none">
+  <div class="auth-modal-panel">
+    <button id="auth-modal-close" class="auth-modal-close" type="button"
+            aria-label="Close">&times;</button>
+    <h2 id="auth-modal-title" class="auth-modal-title">Welcome to JetSets</h2>
+    <div class="auth-tabs">
+      <button id="auth-tab-signin" class="auth-tab active" type="button">Sign in</button>
+      <button id="auth-tab-signup" class="auth-tab"        type="button">Create account</button>
+    </div>
+
+    <form id="auth-form-signin" class="auth-form">
+      <label class="auth-label">Email
+        <input name="email" type="email" autocomplete="email" required>
+      </label>
+      <label class="auth-label">Password
+        <input name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <div class="auth-err" id="auth-err-signin"></div>
+      <button type="submit" class="auth-submit btn">Sign in</button>
+    </form>
+
+    <form id="auth-form-signup" class="auth-form" style="display:none">
+      <label class="auth-label">Username
+        <input name="username" type="text" autocomplete="username"
+               minlength="3" maxlength="24"
+               pattern="[A-Za-z0-9_\-]+"
+               required>
+      </label>
+      <label class="auth-label">Email
+        <input name="email" type="email" autocomplete="email" required>
+      </label>
+      <label class="auth-label">Password
+        <input name="password" type="password" autocomplete="new-password"
+               minlength="6" required>
+      </label>
+      <div class="auth-err" id="auth-err-signup"></div>
+      <button type="submit" class="auth-submit btn">Create account</button>
+    </form>
+
+    <p class="auth-modal-foot">
+      Your username appears on the leaderboards. Email + password are stored by Supabase.
+    </p>
   </div>
 </div>
 <p class="tagline">Route the shortest journey in 6 tries.</p>
@@ -1339,5 +1497,9 @@
 <script src="globe.js"></script>
 <script src="game.js"></script>
 <script src="app.js"></script>
+<!-- auth.js is loaded as an ES module so it can pull supabase-js from a
+     CDN without a build step. It exposes window.JetSetsAuth for the rest
+     of the app to call into (e.g. score submission from game.js later). -->
+<script type="module" src="auth.js"></script>
 </body>
 </html>
