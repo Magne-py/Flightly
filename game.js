@@ -145,6 +145,11 @@
   let speedrunSolves = 0;         // running solved-puzzle count
   let speedrunHistory = [];       // [{start, dest, path, attemptsUsed, points}]
   let speedrunTimerInterval = null;
+  // Leaderboard submission state for the just-ended run. Captured at end
+  // of run so we can retry the submit if the user signs in while the
+  // summary panel is still visible.
+  let speedrunPendingSubmit = null; // {mode, points, solves} or null
+  let speedrunSubmitted = false;
 
   // ---------- DOM ----------
   const $ = (id) => document.getElementById(id);
@@ -1119,6 +1124,8 @@
     speedrunScore = 0;
     speedrunSolves = 0;
     speedrunHistory = [];
+    speedrunPendingSubmit = null;
+    speedrunSubmitted = false;
     speedrunStartTime = 0;
     // Deadline isn't armed until the player clicks Start — set to a sentinel
     // so the auto-advance path's "Date.now() >= deadline" check can't fire.
@@ -1256,6 +1263,9 @@
     // Render the compressed list of every solved route + its solution
     // immediately after the shortest-route block.
     renderSpeedrunHistoryBlock();
+    // Then the leaderboard-submit block: shows save state, or a
+    // sign-in CTA if the player isn't authenticated.
+    maybeAutoSubmitScore();
 
     // Lock controls.
     submitBtn.disabled = true;
@@ -1468,6 +1478,109 @@
       `<div class="solution-label">Routes you solved (${speedrunHistory.length}):</div>
        <div class="speedrun-history-list">${items}</div>`;
   }
+
+  // ---------- Leaderboard submission ----------
+  // Try to save the just-finished run to Supabase. Skips zero-score runs
+  // (no point cluttering the leaderboard). If the user is signed in, fires
+  // the insert immediately. If not, shows a sign-in CTA — and we listen
+  // for the auth state change so the score auto-submits once they're in.
+  function maybeAutoSubmitScore() {
+    if (speedrunScore <= 0 || speedrunSolves <= 0) {
+      renderLeaderboardBlock("none");
+      return;
+    }
+    speedrunPendingSubmit = {
+      mode: speedrunModeKey,
+      points: speedrunScore,
+      solves: speedrunSolves,
+    };
+    if (window.JetSetsAuth && window.JetSetsAuth.isSignedIn()) {
+      submitPendingScore();
+    } else {
+      renderLeaderboardBlock("need-signin");
+    }
+  }
+
+  async function submitPendingScore() {
+    if (!speedrunPendingSubmit || speedrunSubmitted) return;
+    if (!window.JetSetsAuth || !window.JetSetsAuth.submitScore) {
+      renderLeaderboardBlock("error", "Auth module unavailable.");
+      return;
+    }
+    renderLeaderboardBlock("saving");
+    try {
+      await window.JetSetsAuth.submitScore(speedrunPendingSubmit);
+      speedrunSubmitted = true;
+      renderLeaderboardBlock("saved");
+    } catch (err) {
+      if (err && err.code === "not_signed_in") {
+        renderLeaderboardBlock("need-signin");
+      } else {
+        const msg = (err && err.message) ? err.message : "Couldn't save score.";
+        renderLeaderboardBlock("error", msg);
+      }
+    }
+  }
+
+  // Render (or update) the leaderboard-submit block inside the speedrun
+  // summary panel. State is one of: "none", "need-signin", "saving",
+  // "saved", "error". The block is inserted just before the result panel's
+  // action row so it sits at the bottom of the summary content.
+  function renderLeaderboardBlock(state, errMsg) {
+    if (!resultPanel) return;
+    let block = document.getElementById("leaderboard-submit-block");
+    const needsBlock = state !== "none";
+    if (!needsBlock) {
+      if (block) block.remove();
+      return;
+    }
+    if (!block) {
+      block = document.createElement("div");
+      block.id = "leaderboard-submit-block";
+      block.className = "leaderboard-submit";
+      const actions = resultPanel.querySelector(".result-actions");
+      resultPanel.insertBefore(block, actions);
+    }
+    let html = "";
+    if (state === "need-signin") {
+      html =
+        `<div class="lb-msg">Sign in to save this score on the leaderboard.</div>
+         <button type="button" class="btn lb-signin-btn" id="lb-signin-btn">Sign in / Create account</button>`;
+    } else if (state === "saving") {
+      html = `<div class="lb-msg">Saving score…</div>`;
+    } else if (state === "saved") {
+      html = `<div class="lb-msg lb-saved">&#x2713; Score saved to the leaderboard.</div>`;
+    } else if (state === "error") {
+      html = `<div class="lb-msg lb-error">Couldn't save score${errMsg ? ` — ${errMsg}` : ""}.</div>
+              <button type="button" class="btn secondary lb-retry-btn" id="lb-retry-btn">Try again</button>`;
+    }
+    block.innerHTML = html;
+    const signInBtn = document.getElementById("lb-signin-btn");
+    if (signInBtn) {
+      signInBtn.addEventListener("click", () => {
+        if (window.JetSetsAuth && window.JetSetsAuth.openModal) {
+          window.JetSetsAuth.openModal("signin");
+        }
+      });
+    }
+    const retryBtn = document.getElementById("lb-retry-btn");
+    if (retryBtn) {
+      retryBtn.addEventListener("click", submitPendingScore);
+    }
+  }
+
+  // When the user signs in (or out) while the summary panel is open,
+  // react: a fresh sign-in retries the pending submission; a sign-out
+  // reverts the block to the sign-in CTA.
+  window.addEventListener("jetsets-auth-changed", (e) => {
+    if (!speedrunPendingSubmit || speedrunSubmitted) return;
+    const signedIn = !!(e && e.detail && e.detail.signedIn);
+    if (signedIn) {
+      submitPendingScore();
+    } else {
+      renderLeaderboardBlock("need-signin");
+    }
+  });
 
   // Compute every shortest path from start→dest. Returns:
   //   { count: total_count, routes: [[code, ...], ...] }

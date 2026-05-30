@@ -501,6 +501,29 @@
   .solution-label { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
   .solution-count { color: var(--accent); text-decoration: underline; cursor: pointer; font-weight: 600; margin-left: 4px; }
   .solution-count.solo { color: var(--muted); text-decoration: none; cursor: default; font-weight: 500; }
+  /* Leaderboard submission block — sits at the bottom of the speedrun
+     summary panel, just before the result-actions row. Shows save state
+     (saving / saved / error) or a sign-in CTA for unauthenticated users. */
+  .leaderboard-submit {
+    margin: 12px 0 10px; padding: 12px 14px;
+    background: var(--bg-alt); border: 1px solid var(--border); border-radius: 10px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .leaderboard-submit .lb-msg {
+    color: var(--text); font-size: 13px; line-height: 1.5;
+  }
+  .leaderboard-submit .lb-saved { color: var(--green); font-weight: 700; }
+  .leaderboard-submit .lb-error { color: var(--red); }
+  .leaderboard-submit .lb-signin-btn {
+    align-self: flex-start;
+    background: var(--accent); color: var(--bg); border: 0; border-radius: 10px;
+    padding: 10px 16px; font-weight: 700; font-size: 13px; cursor: pointer;
+  }
+  .leaderboard-submit .lb-signin-btn:hover { opacity: 0.92; }
+  .leaderboard-submit .lb-retry-btn {
+    align-self: flex-start;
+    padding: 8px 14px; font-size: 13px;
+  }
   /* "best: 12,840 km" tag next to the shortest-route label — the target
      a player has to hit to earn the purple win. */
   .solution-bestkm {

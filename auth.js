@@ -279,11 +279,18 @@ function wireButtons() {
   const { data } = await supabase.auth.getSession();
   currentSession = data.session || null;
   await renderHeader();
-  // Listen for sign-in / sign-out / token-refresh events.
+  // Listen for sign-in / sign-out / token-refresh events. Dispatch a
+  // custom event on the window so other modules (game.js, the eventual
+  // leaderboard view) can react without polling.
   supabase.auth.onAuthStateChange(async (_event, session) => {
+    const wasSignedIn = !!currentSession;
     currentSession = session || null;
     currentProfile = null;
     await renderHeader();
+    const nowSignedIn = !!currentSession;
+    window.dispatchEvent(new CustomEvent("jetsets-auth-changed", {
+      detail: { signedIn: nowSignedIn, wasSignedIn },
+    }));
   });
 })();
 
