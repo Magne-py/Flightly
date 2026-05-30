@@ -175,39 +175,51 @@
   }
 
   // ----- Bulk fetch -----
+  // `bootDone` separates "in-flight" from "completed" so the auth-ready
+  // listener below can re-try the fetch if the first attempt bailed
+  // because auth hadn't initialised yet.
+  let bootDone = false;
+  let bootInFlight = false;
   async function loadAllStats() {
-    if (bootPromise) return bootPromise;
+    if (bootDone || bootInFlight) return;
+    if (!window.JetSetsAuth || !window.JetSetsAuth.client) {
+      // Auth module isn't ready. Don't mark bootDone — we'll be
+      // re-invoked by the `jetsets-auth-ready` listener below as soon
+      // as auth.js finishes its init.
+      return;
+    }
+    bootInFlight = true;
     bootPromise = (async () => {
-      if (!window.JetSetsAuth || !window.JetSetsAuth.client) {
-        // Auth module not ready yet — wait and retry once.
-        await new Promise((r) => setTimeout(r, 250));
-        if (!window.JetSetsAuth || !window.JetSetsAuth.client) return;
+      try {
+        const supabase = window.JetSetsAuth.client;
+        // 880 puzzle pool maxes out around 880 rows × ~40 bytes ≈ 35 KB.
+        // Supabase caps SELECT at 1000 rows by default; we add an explicit
+        // range to be safe in case the pool grows past that later.
+        const { data, error } = await supabase
+          .from("puzzle_stats")
+          .select("puzzle_key, attempts, successes")
+          .range(0, 1999);
+        if (error) {
+          console.warn("[stats] bulk fetch failed:", error.message);
+          return;
+        }
+        for (const row of data || []) {
+          statsByKey[row.puzzle_key] = {
+            attempts: row.attempts || 0,
+            successes: row.successes || 0,
+          };
+        }
+        bootDone = true;
+        // Now that the cache is full, we have enough signal to recompute
+        // tier boundaries from the live distribution rather than the
+        // fallback static 20/40/60/80 split.
+        recomputeThresholds();
+        // Tell the rest of the app the cache is ready so any already-mounted
+        // puzzle headers can repaint.
+        window.dispatchEvent(new CustomEvent("jetsets-stats-ready"));
+      } finally {
+        bootInFlight = false;
       }
-      const supabase = window.JetSetsAuth.client;
-      // 880 puzzle pool maxes out around 880 rows × ~40 bytes ≈ 35 KB.
-      // Supabase caps SELECT at 1000 rows by default; we add an explicit
-      // range to be safe in case the pool grows past that later.
-      const { data, error } = await supabase
-        .from("puzzle_stats")
-        .select("puzzle_key, attempts, successes")
-        .range(0, 1999);
-      if (error) {
-        console.warn("[stats] bulk fetch failed:", error.message);
-        return;
-      }
-      for (const row of data || []) {
-        statsByKey[row.puzzle_key] = {
-          attempts: row.attempts || 0,
-          successes: row.successes || 0,
-        };
-      }
-      // Now that the cache is full, we have enough signal to recompute
-      // tier boundaries from the live distribution rather than the
-      // fallback static 20/40/60/80 split.
-      recomputeThresholds();
-      // Tell the rest of the app the cache is ready so any already-mounted
-      // puzzle headers can repaint.
-      window.dispatchEvent(new CustomEvent("jetsets-stats-ready"));
     })();
     return bootPromise;
   }
@@ -268,14 +280,12 @@
     }
   }
 
-  // Kick the bulk-fetch as soon as we load. Don't block on it — pages
-  // can render with the baked prior_p alone, then upgrade once stats
-  // arrive.
+  // Kick the bulk-fetch as soon as we load. The first attempt only
+  // succeeds if auth.js happens to have initialised first; otherwise
+  // we wait for auth.js to dispatch `jetsets-auth-ready` and try again.
   loadAllStats();
-  // Also retry when auth becomes available, in case stats.js ran first.
-  window.addEventListener("jetsets-auth-changed", () => {
-    if (!bootPromise) loadAllStats();
-  });
+  window.addEventListener("jetsets-auth-ready",  () => loadAllStats());
+  window.addEventListener("jetsets-auth-changed", () => loadAllStats());
 
   // Public API.
   window.JetSetsStats = {

@@ -1991,20 +1991,14 @@
     // who don't care never see the explanation; curious ones can dig in.
     if (percent != null) {
       const starMark = lowConf ? `<span class="rate-est" aria-label="estimated">*</span>` : "";
-      const confLine = lowConf
-        ? `<span class="re-tag">Estimated &mdash; fewer than ${window.JetSetsStats.LOW_CONFIDENCE_N} real attempts so far.</span>`
-        : `<span class="re-tag re-tag-live">Based on ${ (window.JetSetsStats.getStats(puzzle.start, puzzle.dest).attempts) } real player attempt${window.JetSetsStats.getStats(puzzle.start, puzzle.dest).attempts === 1 ? "" : "s"}.</span>`;
       html +=
         `<button type="button" class="rate" id="rate-toggle"
                  aria-expanded="false" aria-controls="rate-explainer"
-                 title="Click to learn what this is">${percent}%${starMark}</button>`;
+                 title="What this is">${percent}%${starMark}</button>`;
       html +=
         `<div class="rate-explainer" id="rate-explainer" role="region"
               aria-label="What the completion rate means" hidden>
-           <p class="re-line"><b>Completion rate.</b> The fraction of players who have solved this puzzle (start → destination), across every game mode it appears in.</p>
-           <p class="re-line"><b>How it's calculated.</b> A Bayesian blend of the puzzle's seeded difficulty and real player attempts &mdash; a sparsely-played puzzle leans on the seed, a heavily-played one converges on the real success rate.</p>
-           <p class="re-line"><b>Tier (Simple &middot; Easy &middot; Medium &middot; Hard &middot; Extreme).</b> Recomputed from where every puzzle currently sits in the live distribution, so "Extreme" really means "in the toughest 5% of puzzles right now."</p>
-           ${confLine}
+           <p class="re-line">Estimated completion percentage.</p>
          </div>`;
     }
     difficultyEl.innerHTML = html;

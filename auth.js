@@ -279,6 +279,13 @@ function wireButtons() {
   const { data } = await supabase.auth.getSession();
   currentSession = data.session || null;
   await renderHeader();
+  // Tell modules that were waiting for auth (e.g. stats.js's bulk
+  // fetch) that the Supabase client is now usable. This fires ONCE
+  // per page load, regardless of signed-in state; subsequent state
+  // transitions still emit `jetsets-auth-changed` below.
+  window.dispatchEvent(new CustomEvent("jetsets-auth-ready", {
+    detail: { signedIn: !!currentSession },
+  }));
   // Listen for sign-in / sign-out / token-refresh events. Dispatch a
   // custom event on the window so other modules (game.js, the eventual
   // leaderboard view) can react without polling.
