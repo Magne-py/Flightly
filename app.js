@@ -93,6 +93,57 @@
   if (navAbout)       navAbout.addEventListener("click",       () => { setView("about");       setMenuOpen(false); });
   if (navLearn)       navLearn.addEventListener("click",       () => { setView("learn");       setMenuOpen(false); });
   if (navLeaderboard) navLeaderboard.addEventListener("click", () => { setView("leaderboard"); setMenuOpen(false); });
+
+  // ---------- Ambient background planes ----------
+  // Spawns a small fleet of slowly-drifting ✈ glyphs behind the page
+  // content. Each plane gets its own animation duration, delay, vertical
+  // position, size, opacity, and tilt — randomized once on load so the
+  // field looks scattered rather than parallel. A negative animation-delay
+  // (between -duration and 0) means each plane starts mid-flight, so the
+  // page renders with planes already on screen instead of a five-second
+  // wait for the first one to arrive.
+  function spawnBackgroundPlanes() {
+    // Respect users who've asked for reduced motion in their OS settings.
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+    // If already mounted (e.g. from a previous init in the same session),
+    // skip — we don't want to stack fleets on re-entry.
+    if (document.getElementById("bg-planes")) return;
+    const container = document.createElement("div");
+    container.className = "bg-planes";
+    container.id = "bg-planes";
+    container.setAttribute("aria-hidden", "true");
+    const PLANE_COUNT = 9;
+    for (let i = 0; i < PLANE_COUNT; i++) {
+      const plane = document.createElement("div");
+      plane.className = "bg-plane";
+      plane.textContent = "✈";
+      // Random vertical band — clamp away from the very top/bottom so
+      // planes don't graze the header or footer chrome.
+      const topPct = 6 + Math.random() * 84;
+      // 45–95s crossing time gives a calm, parallax-y range of speeds.
+      const duration = 45 + Math.random() * 50;
+      // Negative delay seeds the field with planes already in flight.
+      const delay = -Math.random() * duration;
+      const size = 14 + Math.random() * 22;
+      // Opacity stays low so the planes read as ambience, not noise.
+      const opacity = 0.07 + Math.random() * 0.11;
+      // ✈ has a natural lean; small extra jitter keeps the fleet from
+      // looking robotic.
+      const angle = -22 + (Math.random() - 0.5) * 18;
+      plane.style.top = topPct + "%";
+      plane.style.fontSize = size + "px";
+      plane.style.opacity = opacity;
+      plane.style.animationDuration = duration + "s";
+      plane.style.animationDelay = delay + "s";
+      plane.style.setProperty("--angle", angle + "deg");
+      container.appendChild(plane);
+    }
+    document.body.appendChild(container);
+  }
+  spawnBackgroundPlanes();
+
   if (titleLink) {
     titleLink.addEventListener("click", () => {
       // "Clicking JetSets reverts to the main page and the daily puzzle."

@@ -24,6 +24,33 @@
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 60px; }
 
+  /* ---------- Ambient background planes ----------
+     A fixed-position canvas of subtle ✈ glyphs drifting across the
+     viewport. Sits behind all content (z-index:-1), ignores pointer
+     events, and is hidden entirely for users with reduced-motion
+     preference. Each plane's animation parameters (speed, vertical
+     position, size, opacity, tilt) are randomized in JS so the field
+     doesn't repeat predictably. */
+  .bg-planes {
+    position: fixed; inset: 0;
+    pointer-events: none; overflow: hidden;
+    z-index: -1;
+  }
+  .bg-plane {
+    position: absolute; left: 0;
+    color: var(--accent);
+    white-space: nowrap;
+    will-change: transform;
+    animation: bg-plane-fly linear infinite;
+  }
+  @keyframes bg-plane-fly {
+    from { transform: translateX(-12vw) rotate(var(--angle, -22deg)); }
+    to   { transform: translateX(112vw) rotate(var(--angle, -22deg)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bg-planes { display: none; }
+  }
+
   /* Top header — title sits centered above the tagline; the hamburger
      menu floats in the top right corner and opens the About/Learn
      dropdown. The header is `position: relative` so we can absolutely
