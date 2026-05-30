@@ -360,11 +360,16 @@ def main():
         star_fn, thr = quintile_bucket(raws)
         print(f"  thresholds: p20={thr[0]:.2f} p40={thr[1]:.2f} "
               f"p60={thr[2]:.2f} p80={thr[3]:.2f}")
+        # Star → seed completion rate for the dynamic-difficulty system.
+        # Mirrors the mapping in score_difficulty.py so continent puzzles
+        # converge to the same posterior model as the global pool.
+        STAR_TO_PRIOR_P = {1: 0.90, 2: 0.70, 3: 0.50, 4: 0.30, 5: 0.10}
         dist = defaultdict(int)
         for p, f in zip(pool, feats):
             s = star_fn(f["raw"])
             p["difficulty"] = round(f["raw"], 3)
             p["stars"] = s
+            p["prior_p"] = STAR_TO_PRIOR_P[s]
             p["alt_count"] = f["count"]
             dist[s] += 1
         for s in sorted(dist):

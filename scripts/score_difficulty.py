@@ -217,12 +217,21 @@ def main():
           f"p20={thresholds[0]:.2f}  p40={thresholds[1]:.2f}  "
           f"p60={thresholds[2]:.2f}  p80={thresholds[3]:.2f}")
 
+    # prior_p is the puzzle's seed completion-rate for the dynamic
+    # difficulty model — the value the displayed rate falls back to when
+    # there's no real player data yet. Anchored to the star tier's
+    # bucket midpoint so a 1★ Simple defaults to ~90% completion and a
+    # 5★ Extreme to ~10%. As real attempts come in the displayed rate
+    # smoothly moves toward (successes / attempts) via Beta-Bernoulli
+    # updating with prior weight N=20.
+    STAR_TO_PRIOR_P = {1: 0.90, 2: 0.70, 3: 0.50, 4: 0.30, 5: 0.10}
     # Annotate each puzzle in-place.
     star_dist = defaultdict(int)
     for p, f in zip(puzzles, feats):
         s = star_fn(f["raw"])
         p["difficulty"] = round(f["raw"], 3)
         p["stars"] = s
+        p["prior_p"] = STAR_TO_PRIOR_P[s]
         # Light-weight diagnostics; useful when designing UI later.
         p["alt_count"] = f["count"]
         star_dist[s] += 1

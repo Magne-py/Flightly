@@ -915,6 +915,11 @@
           points: earned,
           bestPath: isBestPath,
         });
+        // Successful speedrun puzzles contribute one vote to the
+        // dynamic-difficulty system, same as regular wins.
+        if (window.JetSetsStats) {
+          window.JetSetsStats.submitAttempt(puzzle.start, puzzle.dest, true);
+        }
         updateSpeedrunHud();
         if (Date.now() >= speedrunDeadline) {
           endSpeedrun("timeup");
@@ -1010,6 +1015,14 @@
   }
 
   function showResult(winFlag, stopsUsed, attemptsUsed, gaveUp, isBestPath, playerKm) {
+    // Log this attempt for the dynamic-difficulty system. Rule (b): the
+    // attempt counts if the player engaged at all (any row submitted
+    // OR gave up). Internal dedupe in stats.submitAttempt means calling
+    // this on every showResult is safe.
+    if (puzzle && window.JetSetsStats
+        && (winFlag || gaveUp || attemptsUsed > 0)) {
+      window.JetSetsStats.submitAttempt(puzzle.start, puzzle.dest, !!winFlag);
+    }
     // First show always lands above the grid — score & shortest-route
     // reveal sit on top of the player's colored cells.
     showResultPanelAt("top");
@@ -1207,6 +1220,14 @@
     if (!speedrunActive) return;
     speedrunActive = false;
     stopSpeedrunTimer();
+    // If the player was mid-puzzle when the run ended (rows submitted
+    // but no solve), that puzzle counts as a failure for the dynamic
+    // difficulty system — rule (b). Skip if the puzzle was already
+    // solved earlier in submitRow (won === true) so we don't double-vote.
+    if (puzzle && !won && window.JetSetsStats
+        && (attempts.length > 0 || reason === "fail")) {
+      window.JetSetsStats.submitAttempt(puzzle.start, puzzle.dest, false);
+    }
     showSpeedrunSummary(reason);
     updateSpeedrunHud();
   }
@@ -1877,15 +1898,59 @@
       difficultyEl.innerHTML = html;
       return;
     }
-    const stars = puzzle && puzzle.stars;
-    if (!stars) { difficultyEl.innerHTML = ""; return; }
-    const tierLabel = ["", "Simple", "Easy", "Medium", "Hard", "Extreme"][stars];
-    let html = `<span class="label">${tierLabel}</span>`;
+    if (!puzzle) { difficultyEl.innerHTML = ""; return; }
+    const stars = puzzle.stars;
+    const priorP = puzzle.prior_p;
+    // Compute the live (Bayesian-posterior) completion rate. The tier
+    // label and star count follow the live rate, so a puzzle that's
+    // proven easier than its heuristic seeded gets re-labelled in real
+    // time. Falls back to the baked stars when stats.js hasn't loaded.
+    let percent = null, tier = null, lowConf = true, derivedStars = stars;
+    if (window.JetSetsStats && stars) {
+      const r = window.JetSetsStats.computeRate(puzzle.start, puzzle.dest, priorP);
+      percent = r.percent;
+      tier = r.tier;
+      lowConf = r.lowConfidence;
+      // Map % bucket → 1..5 stars to drive the visual fill.
+      if      (percent >= 80) derivedStars = 1;
+      else if (percent >= 60) derivedStars = 2;
+      else if (percent >= 40) derivedStars = 3;
+      else if (percent >= 20) derivedStars = 4;
+      else                    derivedStars = 5;
+    } else if (stars) {
+      // No stats engine yet — show the static tier so the header isn't blank.
+      tier = ["", "Simple", "Easy", "Medium", "Hard", "Extreme"][stars];
+    } else {
+      difficultyEl.innerHTML = "";
+      return;
+    }
+    let html = "";
+    if (percent != null) {
+      const tip = lowConf
+        ? `Estimated — fewer than ${window.JetSetsStats.LOW_CONFIDENCE_N} real attempts so far.`
+        : `Live completion rate across all players.`;
+      const star = lowConf ? `<span class="rate-est" title="${tip}">*</span>` : "";
+      html += `<span class="rate" title="${tip}">${percent}%${star}</span>`;
+    }
+    if (tier) html += `<span class="label">${tier}</span>`;
     for (let i = 1; i <= 5; i++) {
-      html += `<span class="${i <= stars ? "star-on" : "star-off"}">★</span>`;
+      html += `<span class="${i <= derivedStars ? "star-on" : "star-off"}">★</span>`;
     }
     difficultyEl.innerHTML = html;
   }
+
+  // Re-render the difficulty badge whenever the stats cache loads or
+  // updates so a freshly-bulk-fetched puzzle's % appears without a
+  // round refresh, and the player's own attempt-submission reflects
+  // immediately in the header.
+  window.addEventListener("jetsets-stats-ready", () => {
+    if (puzzle) renderDifficulty();
+  });
+  window.addEventListener("jetsets-stats-updated", (e) => {
+    if (!puzzle) return;
+    const k = `${puzzle.start}-${puzzle.dest}`;
+    if (e && e.detail && e.detail.puzzleKey === k) renderDifficulty();
+  });
 
   // ---------- Mode switching ----------
   // Wire ACTIVE_ROUTES + activeCodes for the selected mode, then pick a

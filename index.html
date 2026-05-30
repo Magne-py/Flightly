@@ -325,6 +325,18 @@
   .puzzle-difficulty .star-on  { color: var(--yellow); }
   .puzzle-difficulty .star-off { color: var(--border); }
   .puzzle-difficulty .label    { color: var(--muted); margin-right: 6px; }
+  /* Live completion-rate percentage — sits to the LEFT of the tier
+     label. Reads as the headline difficulty signal once the puzzle has
+     enough real attempts behind it. */
+  .puzzle-difficulty .rate {
+    color: var(--accent); font-weight: 700; font-size: 13px;
+    margin-right: 8px; letter-spacing: 0.3px;
+  }
+  .puzzle-difficulty .rate-est {
+    color: var(--muted); font-weight: 700;
+    margin-left: 1px;
+    cursor: help;
+  }
 
   .grid { width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 6px; }
   .row {
@@ -1726,6 +1738,7 @@
 <script src="game.js"></script>
 <script src="app.js"></script>
 <script src="leaderboard.js"></script>
+<script src="stats.js"></script>
 <!-- auth.js is loaded as an ES module so it can pull supabase-js from a
      CDN without a build step. It exposes window.JetSetsAuth for the rest
      of the app to call into (e.g. score submission from game.js later). -->
