@@ -31,6 +31,12 @@
   .app-header {
     width: 100%; max-width: 1180px;
     position: relative;
+    /* The header needs to sit above the rest of the page so its
+       dropdowns (hamburger menu, auth menu) aren't covered by sticky
+       siblings — the .right-col map panel uses position:sticky which
+       establishes its own stacking context and otherwise paints over
+       absolutely-positioned popovers from earlier in the DOM. */
+    z-index: 50;
     display: flex; align-items: center; justify-content: center;
     margin-bottom: 4px;
   }
