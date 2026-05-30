@@ -40,29 +40,25 @@
     z-index: -1;
   }
   .bg-plane {
-    position: absolute; left: 0;
+    position: absolute; top: 0; left: 0;
     color: var(--accent);
-    white-space: nowrap;
     will-change: transform;
     animation: bg-plane-fly linear infinite;
+    /* The SVG inside fills the container so width/height set in JS
+       determines the visual plane size. */
   }
-  /* The plane travels along a unit vector (--dx, --dy) set per-plane
-     in JS. The animation traverses 124vw along that vector — when the
-     plane is flying purely horizontally (dy=0) that puts it from
-     -12vw to 112vw on x. When the plane is tilted a few degrees, the
-     vertical component carries it slightly up or down across the
-     screen so the nose direction and the travel direction match. */
+  .bg-plane svg { display: block; width: 100%; height: 100%; }
+  /* Each plane sets four CSS variables that fully describe its path:
+     --from-x / --from-y : where it starts (off-screen on entry side)
+     --to-x   / --to-y   : where it ends   (off-screen on exit side)
+     --angle             : CSS rotation, equal to the flight heading in
+                           degrees (since the SVG points east at 0).
+     The animation interpolates linearly between the two endpoints, so
+     the plane travels in a perfectly straight line whose direction
+     matches the rotation. */
   @keyframes bg-plane-fly {
-    from {
-      transform:
-        translate(calc(var(--dx, 1) * -12vw), calc(var(--dy, 0) * -12vw))
-        rotate(var(--angle, 45deg));
-    }
-    to {
-      transform:
-        translate(calc(var(--dx, 1) * 112vw), calc(var(--dy, 0) * 112vw))
-        rotate(var(--angle, 45deg));
-    }
+    from { transform: translate(var(--from-x), var(--from-y)) rotate(var(--angle, 0deg)); }
+    to   { transform: translate(var(--to-x),   var(--to-y))   rotate(var(--angle, 0deg)); }
   }
   @media (prefers-reduced-motion: reduce) {
     .bg-planes { display: none; }

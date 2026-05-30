@@ -114,43 +114,61 @@
     container.className = "bg-planes";
     container.id = "bg-planes";
     container.setAttribute("aria-hidden", "true");
-    const PLANE_COUNT = 9;
+    // Inline SVG paper-plane that points EAST at rotation 0. Using SVG
+    // (instead of the ✈ Unicode glyph) means every browser/font shows
+    // the same orientation, which is essential — the "rotation in
+    // degrees" we apply IS the flight heading because the icon's
+    // natural direction is pinned to 0°.
+    const PLANE_SVG =
+      '<svg viewBox="0 0 32 12" xmlns="http://www.w3.org/2000/svg" fill="currentColor">' +
+        '<path d="M0 0 L32 6 L0 12 L12 6 Z"/>' +
+      '</svg>';
+    const PLANE_COUNT = 14;
+    // Half-length of each plane's flight path in viewport units. 90 is
+    // wide enough that the planes are fully off-screen at the endpoints
+    // even on portrait phones (where vw and vh diverge).
+    const HALF_LEN = 90;
     for (let i = 0; i < PLANE_COUNT; i++) {
       const plane = document.createElement("div");
       plane.className = "bg-plane";
-      plane.textContent = "✈";
-      // Random vertical band — clamp away from the very top/bottom so
-      // planes don't graze the header or footer chrome.
-      const topPct = 6 + Math.random() * 84;
-      // 45–95s crossing time gives a calm, parallax-y range of speeds.
-      const duration = 45 + Math.random() * 50;
-      // Negative delay seeds the field with planes already in flight.
+      plane.innerHTML = PLANE_SVG;
+      // Heading: any direction, 0–360°. Since the SVG points east at
+      // rotation 0, the rotation we apply IS the heading.
+      const headingDeg = Math.random() * 360;
+      const headingRad = headingDeg * Math.PI / 180;
+      const dx = Math.cos(headingRad);
+      const dy = Math.sin(headingRad);
+      // Pick a random viewport point the flight path passes through.
+      // Using vw for both axes keeps the geometry square — important
+      // because the path length is measured in vw and we want the
+      // visual angle to look correct regardless of viewport ratio.
+      const midX = Math.random() * 100;
+      const midY = Math.random() * 100;
+      const fromX = midX - dx * HALF_LEN;
+      const fromY = midY - dy * HALF_LEN;
+      const toX   = midX + dx * HALF_LEN;
+      const toY   = midY + dy * HALF_LEN;
+      // 40–95s crossing time gives a calm, parallax-y range of speeds.
+      const duration = 40 + Math.random() * 55;
+      // Negative delay seeds the field with planes already in flight
+      // on first paint, so the sky doesn't look empty for 30 seconds.
       const delay = -Math.random() * duration;
-      const size = 14 + Math.random() * 22;
-      // Opacity bumped up from the original 0.07–0.18 — at the lower end
-      // the planes were rendering but effectively invisible on most
-      // monitors. 0.18–0.33 still reads as ambient against the dark
-      // background without competing with the foreground content.
+      // 22–48px wide; height auto-scales with the 32:12 aspect ratio.
+      const width = 22 + Math.random() * 26;
       const opacity = 0.18 + Math.random() * 0.15;
-      // Tilt the flight path a few degrees off horizontal — purely
-      // horizontal would feel mechanical. The ✈ glyph naturally points
-      // ~45° CCW from east (upper-right), so the CSS rotation needs to
-      // be 45° + tilt for the nose to line up with the travel vector.
-      // The unit vector (dx, dy) seeds the keyframe so the plane moves
-      // in the direction it's pointing.
-      const tiltDeg = -8 + Math.random() * 16;            // −8° to +8°
-      const cssRotateDeg = 45 + tiltDeg;                  // 37° to 53°
-      const tiltRad = tiltDeg * Math.PI / 180;
-      const dx = Math.cos(tiltRad);
-      const dy = Math.sin(tiltRad);
-      plane.style.top = topPct + "%";
-      plane.style.fontSize = size + "px";
+      plane.style.width = width + "px";
+      plane.style.height = (width * 12 / 32) + "px";
       plane.style.opacity = opacity;
       plane.style.animationDuration = duration + "s";
       plane.style.animationDelay = delay + "s";
-      plane.style.setProperty("--angle", cssRotateDeg + "deg");
-      plane.style.setProperty("--dx", dx.toFixed(4));
-      plane.style.setProperty("--dy", dy.toFixed(4));
+      plane.style.setProperty("--angle", headingDeg.toFixed(2) + "deg");
+      // vw on both axes keeps the path geometry square regardless of
+      // viewport aspect ratio, so a 45° heading looks like a true 45°
+      // diagonal on any device.
+      plane.style.setProperty("--from-x", fromX.toFixed(2) + "vw");
+      plane.style.setProperty("--from-y", fromY.toFixed(2) + "vw");
+      plane.style.setProperty("--to-x",   toX.toFixed(2)   + "vw");
+      plane.style.setProperty("--to-y",   toY.toFixed(2)   + "vw");
       container.appendChild(plane);
     }
     document.body.appendChild(container);
