@@ -114,23 +114,30 @@
     container.className = "bg-planes";
     container.id = "bg-planes";
     container.setAttribute("aria-hidden", "true");
-    // Top-down passenger-jet silhouette pointing EAST at rotation 0.
-    // Proportions match a real narrow-body airliner (737/A320):
-    //   length ≈ wingspan (~1:1), fuselage ~1/14 of length wide,
-    //   horizontal stabilizers ~40% of main wingspan.
-    // Single SVG path, walked counter-clockwise from the tail cone
-    // around the top half to the nose, then mirror-image back along
-    // the bottom half. Components (read left → right):
-    //   • Tail cone + horizontal stabilizers at x=0–10.
-    //   • Swept-back main wings at x=22–32, wing tips reaching the
-    //     full viewBox edge at y=0 / y=56.
-    //   • Tapered fuselage from x=10 through x=52.
-    //   • Pointed nose at x=56.
-    // ViewBox is 56×56 (square), matching real-jet proportions.
-    const PLANE_SVG =
+    // Two top-down passenger-jet silhouettes, both pointing EAST at
+    // rotation 0 and sharing the same 56×56 viewBox so render sizing
+    // works the same for both. The fleet draws from this set with a
+    // weight: narrow-bodies are far more common in real life, so the
+    // 737-style silhouette gets the majority.
+    //   [0] Narrow-body (737 / A320): modest 15° wing sweep, slim
+    //       fuselage, small horizontal stabilizers. Wing tips at
+    //       x=26 — barely behind the wing roots.
+    //   [1] Wide-body (747-style): aggressive 40° wing sweep, the
+    //       defining 747 silhouette. Wing tips at x=14 — well behind
+    //       the wing roots, so the wings look distinctly angular.
+    //       Slightly larger tail stabilizers too.
+    const PLANE_SVGS = [
       '<svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" fill="currentColor">' +
         '<path d="M0 28 L3 16 L10 26 L22 26 L26 0 L32 26 L52 25 L56 28 L52 31 L32 30 L26 56 L22 30 L10 30 L3 40 Z"/>' +
-      '</svg>';
+      '</svg>',
+      '<svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" fill="currentColor">' +
+        '<path d="M0 28 L3 14 L10 26 L24 26 L14 0 L36 26 L52 25 L56 28 L52 31 L36 30 L14 56 L24 30 L10 30 L3 42 Z"/>' +
+      '</svg>',
+    ];
+    // Weight of the wide-body silhouette. 0.30 ≈ "one in three is a
+    // 747 / wide-body, the rest are narrow-bodies." Tweak between
+    // 0 (no wide-bodies) and 1 (all wide-bodies) to taste.
+    const WIDE_BODY_PROBABILITY = 0.30;
     const PLANE_COUNT = 14;
     // Half-length of each plane's flight path in viewport units. 90 is
     // wide enough that the planes are fully off-screen at the endpoints
@@ -139,7 +146,10 @@
     for (let i = 0; i < PLANE_COUNT; i++) {
       const plane = document.createElement("div");
       plane.className = "bg-plane";
-      plane.innerHTML = PLANE_SVG;
+      // Pick the silhouette for this plane. Wide-bodies are a minority
+      // (real fleet ratios skew narrow-body); see WIDE_BODY_PROBABILITY.
+      const isWideBody = Math.random() < WIDE_BODY_PROBABILITY;
+      plane.innerHTML = PLANE_SVGS[isWideBody ? 1 : 0];
       // Heading: any direction, 0–360°. Since the SVG points east at
       // rotation 0, the rotation we apply IS the heading.
       const headingDeg = Math.random() * 360;
@@ -161,11 +171,11 @@
       // Negative delay seeds the field with planes already in flight
       // on first paint, so the sky doesn't look empty for 30 seconds.
       const delay = -Math.random() * duration;
-      // 16–34px square. The SVG aspect ratio is 1:1 to match real-jet
-      // top-down proportions, so width and height are equal. Range is
-      // pulled down a bit from the old 22-48 since 1:1 planes occupy
-      // more visual area than the previous stretched aspect.
-      const width = 16 + Math.random() * 18;
+      // 16–34px square base; wide-bodies render 1.25× bigger to reflect
+      // their real-world size (747 ≈ 1.8× the wingspan of a 737, so
+      // 1.25× in pixels is a modest visual nod without dominating).
+      const baseWidth = 16 + Math.random() * 18;
+      const width = isWideBody ? baseWidth * 1.25 : baseWidth;
       const opacity = 0.18 + Math.random() * 0.15;
       plane.style.width = width + "px";
       plane.style.height = width + "px";
