@@ -127,8 +127,11 @@
       // Negative delay seeds the field with planes already in flight.
       const delay = -Math.random() * duration;
       const size = 14 + Math.random() * 22;
-      // Opacity stays low so the planes read as ambience, not noise.
-      const opacity = 0.07 + Math.random() * 0.11;
+      // Opacity bumped up from the original 0.07–0.18 — at the lower end
+      // the planes were rendering but effectively invisible on most
+      // monitors. 0.18–0.33 still reads as ambient against the dark
+      // background without competing with the foreground content.
+      const opacity = 0.18 + Math.random() * 0.15;
       // ✈ has a natural lean; small extra jitter keeps the fleet from
       // looking robotic.
       const angle = -22 + (Math.random() - 0.5) * 18;
