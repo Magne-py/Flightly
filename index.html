@@ -319,24 +319,56 @@
     margin-top: 12px; color: var(--muted); font-size: 12px;
   }
   .puzzle-meta .shortest { color: var(--accent); font-weight: 600; }
+  /* The difficulty badge inline-flexes its row (tier label + stars +
+     rate button) so the explainer panel can sit below them on its own
+     row when expanded, instead of trying to wedge inline. */
   .puzzle-difficulty {
+    display: inline-flex; flex-wrap: wrap;
+    align-items: center; gap: 4px;
     letter-spacing: 1px;
   }
   .puzzle-difficulty .star-on  { color: var(--yellow); }
   .puzzle-difficulty .star-off { color: var(--border); }
-  .puzzle-difficulty .label    { color: var(--muted); margin-right: 6px; }
-  /* Live completion-rate percentage — sits to the LEFT of the tier
-     label. Reads as the headline difficulty signal once the puzzle has
-     enough real attempts behind it. */
+  .puzzle-difficulty .label    { color: var(--muted); margin-right: 4px; }
+  /* Live completion-rate percentage — sits to the RIGHT of the stars
+     as a small button. Click toggles the .rate-explainer panel below. */
   .puzzle-difficulty .rate {
-    color: var(--accent); font-weight: 700; font-size: 13px;
-    margin-right: 8px; letter-spacing: 0.3px;
+    background: var(--bg-alt); border: 1px solid var(--border);
+    color: var(--accent); font-weight: 700; font-size: 12px;
+    letter-spacing: 0.3px; padding: 2px 8px; margin-left: 6px;
+    border-radius: 999px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 2px;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .puzzle-difficulty .rate:hover { border-color: var(--accent); background: var(--panel); }
+  .puzzle-difficulty .rate[aria-expanded="true"] {
+    background: var(--accent); color: var(--bg); border-color: var(--accent);
   }
   .puzzle-difficulty .rate-est {
-    color: var(--muted); font-weight: 700;
-    margin-left: 1px;
-    cursor: help;
+    font-weight: 700; opacity: 0.6; font-size: 11px;
   }
+  /* Expandable explainer panel — full-width inside the badge, takes a
+     new row when shown. Soft border + muted text so it doesn't compete
+     with the puzzle header itself. */
+  .puzzle-difficulty .rate-explainer {
+    flex: 1 1 100%;
+    margin: 8px 0 0; padding: 10px 12px;
+    background: var(--bg-alt); border: 1px solid var(--border);
+    border-radius: 10px;
+    letter-spacing: 0;
+  }
+  .puzzle-difficulty .rate-explainer[hidden] { display: none; }
+  .puzzle-difficulty .rate-explainer .re-line {
+    margin: 0 0 6px; color: var(--text);
+    font-size: 12px; line-height: 1.55; font-weight: 400;
+  }
+  .puzzle-difficulty .rate-explainer .re-line:last-child { margin-bottom: 0; }
+  .puzzle-difficulty .rate-explainer .re-line b { color: var(--accent); }
+  .puzzle-difficulty .rate-explainer .re-tag {
+    display: inline-block; margin-top: 2px;
+    color: var(--muted); font-size: 11px; font-style: italic;
+  }
+  .puzzle-difficulty .rate-explainer .re-tag-live { color: var(--green); font-style: normal; }
 
   .grid { width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 6px; }
   .row {
@@ -1391,7 +1423,7 @@
       </div>
       <div class="puzzle-meta">
         <span id="puzzle-id">—</span>
-        <span class="puzzle-difficulty" id="puzzle-difficulty" title="Puzzle difficulty"></span>
+        <div class="puzzle-difficulty" id="puzzle-difficulty"></div>
         <span>Shortest path: <span class="shortest" id="shortest-hops">—</span></span>
       </div>
     </div>
