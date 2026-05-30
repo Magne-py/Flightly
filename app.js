@@ -115,18 +115,21 @@
     container.id = "bg-planes";
     container.setAttribute("aria-hidden", "true");
     // Top-down passenger-jet silhouette pointing EAST at rotation 0.
-    // Hand-drawn single path so all 14 copies share a cheap render
-    // budget. Components (read left → right across the SVG):
-    //   • Tail fin at the back (x=0–10), pinched stabilizer shape.
-    //   • Swept-back main wings at x=22–30, peaking at the wing tips
-    //     above (y≈2) and below (y≈20) the fuselage.
-    //   • Tapered fuselage from x=10 through x=48.
-    //   • Pointed nose at x=54.
-    // ViewBox 56×22 ≈ 2.5 aspect ratio, slightly squatter than the old
-    // paper plane so wings + tail are legible at 22 px wide.
+    // Proportions match a real narrow-body airliner (737/A320):
+    //   length ≈ wingspan (~1:1), fuselage ~1/14 of length wide,
+    //   horizontal stabilizers ~40% of main wingspan.
+    // Single SVG path, walked counter-clockwise from the tail cone
+    // around the top half to the nose, then mirror-image back along
+    // the bottom half. Components (read left → right):
+    //   • Tail cone + horizontal stabilizers at x=0–10.
+    //   • Swept-back main wings at x=22–32, wing tips reaching the
+    //     full viewBox edge at y=0 / y=56.
+    //   • Tapered fuselage from x=10 through x=52.
+    //   • Pointed nose at x=56.
+    // ViewBox is 56×56 (square), matching real-jet proportions.
     const PLANE_SVG =
-      '<svg viewBox="0 0 56 22" xmlns="http://www.w3.org/2000/svg" fill="currentColor">' +
-        '<path d="M0 11 L4 8 L10 10 L24 10 L22 2 L30 10 L48 9 L54 11 L48 13 L30 12 L22 20 L24 12 L10 12 L4 14 Z"/>' +
+      '<svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" fill="currentColor">' +
+        '<path d="M0 28 L3 16 L10 26 L22 26 L26 0 L32 26 L52 25 L56 28 L52 31 L32 30 L26 56 L22 30 L10 30 L3 40 Z"/>' +
       '</svg>';
     const PLANE_COUNT = 14;
     // Half-length of each plane's flight path in viewport units. 90 is
@@ -158,11 +161,14 @@
       // Negative delay seeds the field with planes already in flight
       // on first paint, so the sky doesn't look empty for 30 seconds.
       const delay = -Math.random() * duration;
-      // 22–48px wide; height auto-scales with the 56:22 aspect ratio.
-      const width = 22 + Math.random() * 26;
+      // 16–34px square. The SVG aspect ratio is 1:1 to match real-jet
+      // top-down proportions, so width and height are equal. Range is
+      // pulled down a bit from the old 22-48 since 1:1 planes occupy
+      // more visual area than the previous stretched aspect.
+      const width = 16 + Math.random() * 18;
       const opacity = 0.18 + Math.random() * 0.15;
       plane.style.width = width + "px";
-      plane.style.height = (width * 22 / 56) + "px";
+      plane.style.height = width + "px";
       plane.style.opacity = opacity;
       plane.style.animationDuration = duration + "s";
       plane.style.animationDelay = delay + "s";
