@@ -154,6 +154,16 @@
   }
   .mode-menu button:hover { background: var(--bg-alt); color: var(--accent); }
   .mode-menu button.active { background: var(--accent); color: var(--bg); }
+  /* Section divider for the Speedrun menu — labels the group below it
+     (Difficulty / Continent / Other) without taking up much vertical
+     space. Top border draws the rule; the label sits above it. */
+  .mode-menu-sep {
+    color: var(--muted); font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    padding: 8px 12px 2px; margin-top: 4px;
+    border-top: 1px solid var(--border);
+  }
+  .mode-menu-sep:first-child { border-top: 0; margin-top: 0; padding-top: 4px; }
 
   /* ---------- Cryptic mode ---------- */
   /* In Cryptic, only IATA codes are exposed. Hide every city/country/name
@@ -975,12 +985,20 @@
     </button>
     <div class="mode-menu" role="menu" aria-labelledby="trigger-speedrun">
       <button id="mode-speedrun-global"        role="menuitem" title="90-second run, any puzzle worldwide">Global</button>
+      <div class="mode-menu-sep" role="separator">Difficulty</div>
+      <button id="mode-speedrun-simple"        role="menuitem" title="90-second run, 1★ Simple puzzles only">Simple ★</button>
+      <button id="mode-speedrun-easy"          role="menuitem" title="90-second run, 2★ Easy puzzles only">Easy ★★</button>
+      <button id="mode-speedrun-medium"        role="menuitem" title="90-second run, 3★ Medium puzzles only">Medium ★★★</button>
+      <button id="mode-speedrun-hard"          role="menuitem" title="90-second run, 4★ Hard puzzles only">Hard ★★★★</button>
+      <button id="mode-speedrun-extreme"       role="menuitem" title="90-second run, 5★ Extreme puzzles only">Extreme ★★★★★</button>
+      <div class="mode-menu-sep" role="separator">Continent</div>
       <button id="mode-speedrun-africa"        role="menuitem" title="90-second run, Africa puzzles only">Africa</button>
       <button id="mode-speedrun-europe"        role="menuitem" title="90-second run, Europe puzzles only">Europe</button>
       <button id="mode-speedrun-north-america" role="menuitem" title="90-second run, North America puzzles only">North America</button>
       <button id="mode-speedrun-south-america" role="menuitem" title="90-second run, South America puzzles only">South America</button>
       <button id="mode-speedrun-asia"          role="menuitem" title="90-second run, Asia puzzles only">Asia</button>
       <button id="mode-speedrun-oceania"       role="menuitem" title="90-second run, Oceania puzzles only">Oceania</button>
+      <div class="mode-menu-sep" role="separator">Other</div>
       <button id="mode-speedrun-cryptic"       role="menuitem" title="90-second run, codes only — no map, no place names">Cryptic</button>
     </div>
   </div>

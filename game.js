@@ -64,6 +64,11 @@
   // names the intra-continent subgraph to swap into.
   const MODE_SPEEDRUN = {
     "speedrun-global":         { variant: "global",    label: "Speedrun · Global" },
+    "speedrun-simple":         { variant: "difficulty", label: "Speedrun · Simple",   stars: 1 },
+    "speedrun-easy":           { variant: "difficulty", label: "Speedrun · Easy",     stars: 2 },
+    "speedrun-medium":         { variant: "difficulty", label: "Speedrun · Medium",   stars: 3 },
+    "speedrun-hard":           { variant: "difficulty", label: "Speedrun · Hard",     stars: 4 },
+    "speedrun-extreme":        { variant: "difficulty", label: "Speedrun · Extreme",  stars: 5 },
     "speedrun-africa":         { variant: "continent", label: "Speedrun · Africa",         continent: "Africa" },
     "speedrun-europe":         { variant: "continent", label: "Speedrun · Europe",         continent: "Europe" },
     "speedrun-north-america":  { variant: "continent", label: "Speedrun · North America",  continent: "North America" },
@@ -92,6 +97,11 @@
     "layover-4":      "4 layovers",
     cryptic: "Cryptic",
     "speedrun-global":         "Speedrun · Global",
+    "speedrun-simple":         "Speedrun · Simple",
+    "speedrun-easy":           "Speedrun · Easy",
+    "speedrun-medium":         "Speedrun · Medium",
+    "speedrun-hard":           "Speedrun · Hard",
+    "speedrun-extreme":        "Speedrun · Extreme",
     "speedrun-africa":         "Speedrun · Africa",
     "speedrun-europe":         "Speedrun · Europe",
     "speedrun-north-america":  "Speedrun · North America",
@@ -175,6 +185,11 @@
     "layover-4":     $("mode-layover-4"),
     cryptic:         $("mode-cryptic"),
     "speedrun-global":        $("mode-speedrun-global"),
+    "speedrun-simple":        $("mode-speedrun-simple"),
+    "speedrun-easy":          $("mode-speedrun-easy"),
+    "speedrun-medium":        $("mode-speedrun-medium"),
+    "speedrun-hard":          $("mode-speedrun-hard"),
+    "speedrun-extreme":       $("mode-speedrun-extreme"),
     "speedrun-africa":        $("mode-speedrun-africa"),
     "speedrun-europe":        $("mode-speedrun-europe"),
     "speedrun-north-america": $("mode-speedrun-north-america"),
@@ -341,6 +356,28 @@
   function randomSpeedrunPuzzle() {
     const idx = weightedPuzzleIndex(Math.random, SPEEDRUN_LAYOVER_WEIGHTS);
     return Object.assign({ id: `Random #${idx + 1}` }, PUZZLES[idx]);
+  }
+
+  // Difficulty-tier speedrun: every puzzle is locked to the requested
+  // star tier, but the layover distribution within that tier still
+  // favours shorter routes so the player can rack up solves inside the
+  // 90-second window. Falls back to global if the tier somehow empty.
+  function randomDifficultySpeedrunPuzzle(stars) {
+    const pool = PUZZLES_BY_STARS[stars] || [];
+    if (!pool.length) return randomSpeedrunPuzzle();
+    // Try a layover-weighted pick FIRST (intersect tier × layover); fall
+    // back to a uniform pick within the tier if every weighted slot is
+    // empty (e.g. tier 5 with no 1-layover puzzles).
+    for (let tries = 0; tries < 6; tries++) {
+      const lay = pickWeighted(SPEEDRUN_LAYOVER_WEIGHTS, Math.random()) + 1;
+      const bucket = (PUZZLES_BY_STARS_AND_LAYOVERS[stars] || {})[lay] || [];
+      if (bucket.length) {
+        const idx = bucket[Math.floor(Math.random() * bucket.length)];
+        return Object.assign({ id: `${stars}★ #${idx + 1}` }, PUZZLES[idx]);
+      }
+    }
+    const idx = pool[Math.floor(Math.random() * pool.length)];
+    return Object.assign({ id: `${stars}★ #${idx + 1}` }, PUZZLES[idx]);
   }
 
   // Pick a random puzzle from a continent's intra-continent pool. The puzzle
@@ -1056,6 +1093,11 @@
       // Continent fell empty — fall back to the speedrun-weighted picker
       // rather than the Random picker so the layover bias is preserved.
       return randomSpeedrunPuzzle();
+    }
+    if (cfg.variant === "difficulty") {
+      // Every puzzle in the run is locked to the configured star tier,
+      // with the speedrun layover bias applied within that tier.
+      return randomDifficultySpeedrunPuzzle(cfg.stars);
     }
     if (cfg.variant === "cryptic") {
       // Cryptic styling comes from the body class — the picker is the
