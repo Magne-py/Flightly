@@ -25,12 +25,19 @@
   // the UI so the player knows the number is still squishy.
   const LOW_CONFIDENCE_N = 20;
   // Tier-boundary percentiles. The 5 difficulty tiers are anchored to
-  // quintiles of the LIVE distribution of completion rates across all
-  // puzzles, so each tier always holds ~20% of puzzles by count and
-  // the boundaries shift as the empirical distribution becomes known.
-  // Tweak this to skew tier sizes (e.g. [0.05, 0.25, 0.50, 0.80] for a
-  // tighter Extreme bucket). Order: p20, p40, p60, p80 (low → high).
-  const TIER_PERCENTILES = [0.20, 0.40, 0.60, 0.80];
+  // points along the LIVE distribution of completion rates across all
+  // puzzles, so the boundaries shift as the empirical distribution
+  // becomes known. The split is NOT uniform — we lean on the extremes:
+  // only the bottom 5% of puzzles get "Extreme" and only the top 15%
+  // get "Simple," so those labels carry real weight. Easy/Medium/Hard
+  // absorb the larger middle. Order: p_extreme, p_hard, p_medium, p_easy
+  // (low → high — same indices as tierThresholds[]).
+  //   Extreme : bottom 5%
+  //   Hard    : next 20%   (5–25%)
+  //   Medium  : next 25%   (25–50%)
+  //   Easy    : next 35%   (50–85%)
+  //   Simple  : top 15%    (85–100%)
+  const TIER_PERCENTILES = [0.05, 0.25, 0.50, 0.85];
   // Below this many puzzles in the distribution we fall back to the
   // static 20/40/60/80 boundaries — quintiles of < ~50 puzzles are too
   // noisy to label reliably.
@@ -84,10 +91,12 @@
     return statsByKey[k] || { attempts: 0, successes: 0 };
   }
 
-  // Live thresholds — start at the static 20/40/60/80 split so a fresh
-  // page with no stats still labels tiers correctly. recomputeThresholds()
-  // overwrites these once enough puzzle rates are known.
-  let tierThresholds = [0.20, 0.40, 0.60, 0.80];
+  // Live thresholds — pre-seeded with completion-rate equivalents of the
+  // TIER_PERCENTILES interpreted as direct rate cuts, so a fresh page
+  // with no stats still labels tiers sensibly until recomputeThresholds()
+  // overwrites them from the empirical distribution. Order matches
+  // TIER_PERCENTILES: [extreme/hard, hard/medium, medium/easy, easy/simple].
+  let tierThresholds = [0.05, 0.25, 0.50, 0.85];
 
   // Raw posterior rate for a puzzle. Used both by computeRate() and by
   // recomputeThresholds() — split out so the threshold pass doesn't pay
@@ -133,7 +142,8 @@
       }
     }
     if (rates.length < MIN_PUZZLES_FOR_DYNAMIC_THRESHOLDS) {
-      tierThresholds = [0.20, 0.40, 0.60, 0.80];
+      // Fall back to the seed values that match TIER_PERCENTILES.
+      tierThresholds = [0.05, 0.25, 0.50, 0.85];
       return;
     }
     rates.sort((a, b) => a - b);
