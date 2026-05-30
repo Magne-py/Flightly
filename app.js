@@ -14,14 +14,16 @@
 
   // ---------- View switching ----------
   const views = {
-    game:  document.getElementById("view-game"),
-    about: document.getElementById("view-about"),
-    learn: document.getElementById("view-learn"),
+    game:        document.getElementById("view-game"),
+    about:       document.getElementById("view-about"),
+    learn:       document.getElementById("view-learn"),
+    leaderboard: document.getElementById("view-leaderboard"),
   };
-  const navMenu      = document.getElementById("nav-menu");
-  const navToggle    = document.getElementById("nav-toggle");
-  const navAbout     = document.getElementById("nav-about");
-  const navLearn     = document.getElementById("nav-learn");
+  const navMenu        = document.getElementById("nav-menu");
+  const navToggle      = document.getElementById("nav-toggle");
+  const navAbout       = document.getElementById("nav-about");
+  const navLearn       = document.getElementById("nav-learn");
+  const navLeaderboard = document.getElementById("nav-leaderboard");
   const titleLink    = document.getElementById("title-link");
   const mapPanel     = document.querySelector(".map-panel");
   // Where the map lives in each view — we move .map-panel between them.
@@ -37,8 +39,16 @@
       views[k].classList.toggle("active", k === name);
     }
     // Highlight the menu items so the popover reflects the current view.
-    if (navAbout) navAbout.classList.toggle("active", name === "about");
-    if (navLearn) navLearn.classList.toggle("active", name === "learn");
+    if (navAbout)       navAbout.classList.toggle("active",       name === "about");
+    if (navLearn)       navLearn.classList.toggle("active",       name === "learn");
+    if (navLeaderboard) navLeaderboard.classList.toggle("active", name === "leaderboard");
+
+    // Leaderboard view triggers its own lazy fetch on entry. Refetches
+    // on every visit so a score submitted earlier in the session shows
+    // up without a reload.
+    if (name === "leaderboard" && window.JetSetsLeaderboard) {
+      window.JetSetsLeaderboard.refresh();
+    }
 
     if (name === "learn") {
       // Move the map into the Learn page. If we already have a selected
@@ -80,8 +90,9 @@
     });
   }
   document.addEventListener("click", () => setMenuOpen(false));
-  if (navAbout) navAbout.addEventListener("click", () => { setView("about"); setMenuOpen(false); });
-  if (navLearn) navLearn.addEventListener("click", () => { setView("learn"); setMenuOpen(false); });
+  if (navAbout)       navAbout.addEventListener("click",       () => { setView("about");       setMenuOpen(false); });
+  if (navLearn)       navLearn.addEventListener("click",       () => { setView("learn");       setMenuOpen(false); });
+  if (navLeaderboard) navLeaderboard.addEventListener("click", () => { setView("leaderboard"); setMenuOpen(false); });
   if (titleLink) {
     titleLink.addEventListener("click", () => {
       // "Clicking JetSets reverts to the main page and the daily puzzle."

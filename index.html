@@ -827,7 +827,7 @@
   .map-zoom-btn.reset { font-size: 14px; }
 
   /* ---------- View switching ---------- */
-  /* Only one of #view-game / #view-about / #view-learn is visible at a time. */
+  /* Only one of #view-game / #view-about / #view-learn / #view-leaderboard is visible at a time. */
   .view { width: 100%; display: none; flex-direction: column; align-items: center; }
   .view.active { display: flex; }
 
@@ -875,6 +875,99 @@
   }
   .grade-table .swatch { margin-top: 3px; }
   .grade-table b { color: var(--text); }
+
+  /* ---------- Leaderboard page ---------- */
+  .lb-wrap {
+    width: 100%; max-width: 820px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .lb-title { margin: 0; font-size: 22px; color: var(--accent); }
+  .lb-sub   { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  /* Mode selector — a horizontally scrolling row of chips on phones,
+     a wrapping flex row on wider viewports. Active chip uses the accent
+     color to mirror the game's mode-toggle style. */
+  .lb-mode-chips {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 4px 0; margin: 4px 0 6px;
+  }
+  .lb-chip {
+    background: var(--panel); border: 1px solid var(--border);
+    color: var(--text); border-radius: 999px; padding: 6px 12px;
+    font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .lb-chip:hover { border-color: var(--accent); }
+  .lb-chip.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  /* "Your best" pin — appears when the signed-in user's top score in
+     this mode is outside the top 100, so they always see how they're
+     doing relative to themselves. */
+  .lb-your-best {
+    background: var(--bg-alt); border: 1px solid var(--accent); border-radius: 10px;
+    padding: 10px 14px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .lb-your-best-label {
+    color: var(--accent); font-size: 11px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .lb-your-best-row {
+    display: flex; flex-wrap: wrap; gap: 4px 18px;
+    color: var(--text); font-size: 13px;
+  }
+  .lb-your-best-row strong { color: var(--accent); font-size: 14px; }
+  /* Leaderboard table. Border-collapse + zebra rows + the signed-in
+     user's row highlighted in accent so they can find themselves at a
+     glance. */
+  .lb-table-wrap {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden;
+  }
+  .lb-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  .lb-table th {
+    text-align: left; padding: 10px 12px;
+    color: var(--muted); font-weight: 700; font-size: 11px;
+    letter-spacing: 1px; text-transform: uppercase;
+    border-bottom: 1px solid var(--border); background: var(--bg-alt);
+  }
+  .lb-table td {
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .lb-table tbody tr:last-child td { border-bottom: 0; }
+  .lb-table tbody tr:hover td { background: var(--bg-alt); }
+  .lb-rank   { color: var(--muted); font-weight: 700; width: 48px; }
+  .lb-user   { font-weight: 600; }
+  .lb-points { font-weight: 700; color: var(--accent); }
+  .lb-solves { color: var(--text); }
+  .lb-date   { color: var(--muted); font-size: 12px; }
+  .lb-table tr.lb-row-me td { background: rgba(78, 168, 255, 0.10); }
+  .lb-table tr.lb-row-me .lb-rank,
+  .lb-table tr.lb-row-me .lb-user,
+  .lb-table tr.lb-row-me .lb-solves,
+  .lb-table tr.lb-row-me .lb-date { color: var(--accent); }
+  .lb-me-tag {
+    background: var(--accent); color: var(--bg);
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
+    padding: 2px 6px; border-radius: 999px; margin-left: 6px;
+    vertical-align: middle;
+  }
+  .lb-loading, .lb-empty, .lb-error {
+    text-align: center; color: var(--muted);
+    padding: 20px 12px !important; font-size: 13px;
+  }
+  .lb-error { color: var(--red); }
+  /* Top-1, top-3 rank badges — gold/silver/bronze flourish. */
+  .lb-table tr:nth-child(1) .lb-rank { color: #e9c13e; }
+  .lb-table tr:nth-child(2) .lb-rank { color: #c0c8d4; }
+  .lb-table tr:nth-child(3) .lb-rank { color: #c98a4b; }
+  @media (max-width: 520px) {
+    .lb-table { font-size: 12px; }
+    .lb-table th, .lb-table td { padding: 8px 8px; }
+    /* Date column eats too much room on a phone — drop it. */
+    .lb-date-col, .lb-date { display: none; }
+  }
 
   /* ---------- Learn page ---------- */
   .learn-wrap {
@@ -1058,6 +1151,7 @@
     <div class="nav-popover" role="menu" aria-labelledby="nav-toggle">
       <button id="nav-about" role="menuitem">About</button>
       <button id="nav-learn" role="menuitem">Learn</button>
+      <button id="nav-leaderboard" role="menuitem">Leaderboards</button>
     </div>
   </div>
 </div>
@@ -1508,6 +1602,31 @@
   </div>
 </div><!-- /#view-learn -->
 
+<div id="view-leaderboard" class="view">
+  <div class="lb-wrap">
+    <h2 class="lb-title">Leaderboards</h2>
+    <p class="lb-sub">Top 100 speedrun scores per mode. Submit your own by signing in and completing a speedrun.</p>
+    <div class="lb-mode-chips" id="lb-mode-chips" role="tablist" aria-label="Leaderboard modes"></div>
+    <div class="lb-your-best" id="lb-your-best" style="display:none"></div>
+    <div class="lb-table-wrap">
+      <table class="lb-table">
+        <thead>
+          <tr>
+            <th class="lb-rank-col">#</th>
+            <th class="lb-user-col">Player</th>
+            <th class="lb-points-col">Pts</th>
+            <th class="lb-solves-col">Solved</th>
+            <th class="lb-date-col">Date</th>
+          </tr>
+        </thead>
+        <tbody id="lb-table-body">
+          <tr><td colspan="5" class="lb-loading">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div><!-- /#view-leaderboard -->
+
 <div class="toast" id="toast"></div>
 
 <script src="data/airports.js"></script>
@@ -1520,6 +1639,7 @@
 <script src="globe.js"></script>
 <script src="game.js"></script>
 <script src="app.js"></script>
+<script src="leaderboard.js"></script>
 <!-- auth.js is loaded as an ES module so it can pull supabase-js from a
      CDN without a build step. It exposes window.JetSetsAuth for the rest
      of the app to call into (e.g. score submission from game.js later). -->
