@@ -132,15 +132,25 @@
       // monitors. 0.18–0.33 still reads as ambient against the dark
       // background without competing with the foreground content.
       const opacity = 0.18 + Math.random() * 0.15;
-      // ✈ has a natural lean; small extra jitter keeps the fleet from
-      // looking robotic.
-      const angle = -22 + (Math.random() - 0.5) * 18;
+      // Tilt the flight path a few degrees off horizontal — purely
+      // horizontal would feel mechanical. The ✈ glyph naturally points
+      // ~45° CCW from east (upper-right), so the CSS rotation needs to
+      // be 45° + tilt for the nose to line up with the travel vector.
+      // The unit vector (dx, dy) seeds the keyframe so the plane moves
+      // in the direction it's pointing.
+      const tiltDeg = -8 + Math.random() * 16;            // −8° to +8°
+      const cssRotateDeg = 45 + tiltDeg;                  // 37° to 53°
+      const tiltRad = tiltDeg * Math.PI / 180;
+      const dx = Math.cos(tiltRad);
+      const dy = Math.sin(tiltRad);
       plane.style.top = topPct + "%";
       plane.style.fontSize = size + "px";
       plane.style.opacity = opacity;
       plane.style.animationDuration = duration + "s";
       plane.style.animationDelay = delay + "s";
-      plane.style.setProperty("--angle", angle + "deg");
+      plane.style.setProperty("--angle", cssRotateDeg + "deg");
+      plane.style.setProperty("--dx", dx.toFixed(4));
+      plane.style.setProperty("--dy", dy.toFixed(4));
       container.appendChild(plane);
     }
     document.body.appendChild(container);

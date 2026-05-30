@@ -46,9 +46,23 @@
     will-change: transform;
     animation: bg-plane-fly linear infinite;
   }
+  /* The plane travels along a unit vector (--dx, --dy) set per-plane
+     in JS. The animation traverses 124vw along that vector — when the
+     plane is flying purely horizontally (dy=0) that puts it from
+     -12vw to 112vw on x. When the plane is tilted a few degrees, the
+     vertical component carries it slightly up or down across the
+     screen so the nose direction and the travel direction match. */
   @keyframes bg-plane-fly {
-    from { transform: translateX(-12vw) rotate(var(--angle, -22deg)); }
-    to   { transform: translateX(112vw) rotate(var(--angle, -22deg)); }
+    from {
+      transform:
+        translate(calc(var(--dx, 1) * -12vw), calc(var(--dy, 0) * -12vw))
+        rotate(var(--angle, 45deg));
+    }
+    to {
+      transform:
+        translate(calc(var(--dx, 1) * 112vw), calc(var(--dy, 0) * 112vw))
+        rotate(var(--angle, 45deg));
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .bg-planes { display: none; }
