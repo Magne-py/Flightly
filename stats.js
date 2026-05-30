@@ -24,6 +24,17 @@
   // Below this many real attempts we tag the rate as "estimated" in
   // the UI so the player knows the number is still squishy.
   const LOW_CONFIDENCE_N = 20;
+  // Tier-boundary percentiles. The 5 difficulty tiers are anchored to
+  // quintiles of the LIVE distribution of completion rates across all
+  // puzzles, so each tier always holds ~20% of puzzles by count and
+  // the boundaries shift as the empirical distribution becomes known.
+  // Tweak this to skew tier sizes (e.g. [0.05, 0.25, 0.50, 0.80] for a
+  // tighter Extreme bucket). Order: p20, p40, p60, p80 (low → high).
+  const TIER_PERCENTILES = [0.20, 0.40, 0.60, 0.80];
+  // Below this many puzzles in the distribution we fall back to the
+  // static 20/40/60/80 boundaries — quintiles of < ~50 puzzles are too
+  // noisy to label reliably.
+  const MIN_PUZZLES_FOR_DYNAMIC_THRESHOLDS = 50;
 
   // ----- Browser identity -----
   const BROWSER_ID_KEY = "jetsets:browser-id";
@@ -73,25 +84,80 @@
     return statsByKey[k] || { attempts: 0, successes: 0 };
   }
 
+  // Live thresholds — start at the static 20/40/60/80 split so a fresh
+  // page with no stats still labels tiers correctly. recomputeThresholds()
+  // overwrites these once enough puzzle rates are known.
+  let tierThresholds = [0.20, 0.40, 0.60, 0.80];
+
+  // Raw posterior rate for a puzzle. Used both by computeRate() and by
+  // recomputeThresholds() — split out so the threshold pass doesn't pay
+  // the cost of building the full result object.
+  function posteriorRate(start, dest, priorP) {
+    const s = getStats(start, dest);
+    const p = (typeof priorP === "number") ? priorP : 0.5;
+    const denom = PRIOR_N + s.attempts;
+    return denom > 0 ? (PRIOR_N * p + s.successes) / denom : p;
+  }
+
+  function rateToTier(rate) {
+    if (rate >= tierThresholds[3]) return "Simple";
+    if (rate >= tierThresholds[2]) return "Easy";
+    if (rate >= tierThresholds[1]) return "Medium";
+    if (rate >= tierThresholds[0]) return "Hard";
+    return "Extreme";
+  }
+
+  // Recompute the four boundary rates as quintiles of the current
+  // distribution of posterior rates across every puzzle in the pool
+  // (global + continent). Called after the bulk fetch lands and again
+  // after a player submits a fresh attempt, so the labels stay in sync
+  // with the data.
+  //
+  // Falls back to the static 20/40/60/80 boundaries if the puzzle pool
+  // hasn't been loaded yet or is suspiciously small — quintiles of a
+  // tiny sample don't carry useful signal.
+  function recomputeThresholds() {
+    const pools = [];
+    if (window.PUZZLES && Array.isArray(window.PUZZLES)) pools.push(window.PUZZLES);
+    if (window.CONTINENT_PUZZLES) {
+      for (const k of Object.keys(window.CONTINENT_PUZZLES)) {
+        const arr = window.CONTINENT_PUZZLES[k];
+        if (Array.isArray(arr)) pools.push(arr);
+      }
+    }
+    const rates = [];
+    for (const pool of pools) {
+      for (const p of pool) {
+        if (!p || typeof p.prior_p !== "number") continue;
+        rates.push(posteriorRate(p.start, p.dest, p.prior_p));
+      }
+    }
+    if (rates.length < MIN_PUZZLES_FOR_DYNAMIC_THRESHOLDS) {
+      tierThresholds = [0.20, 0.40, 0.60, 0.80];
+      return;
+    }
+    rates.sort((a, b) => a - b);
+    const at = (q) => {
+      // Linear-interpolation flavour of percentile, clamped to indices.
+      const idx = Math.max(0, Math.min(rates.length - 1, Math.floor(rates.length * q)));
+      return rates[idx];
+    };
+    tierThresholds = TIER_PERCENTILES.map(at);
+    window.dispatchEvent(new CustomEvent("jetsets-tiers-updated", {
+      detail: { thresholds: tierThresholds.slice() },
+    }));
+  }
+
   // Bayesian posterior. Returns an object with the displayed rate, the
   // tier label (Simple..Extreme), and a confidence flag the UI can use
   // to decorate low-N puzzles.
   function computeRate(start, dest, priorP) {
+    const rate = posteriorRate(start, dest, priorP);
     const s = getStats(start, dest);
-    const p = (typeof priorP === "number") ? priorP : 0.5;
-    const numer = PRIOR_N * p + s.successes;
-    const denom = PRIOR_N + s.attempts;
-    const rate = denom > 0 ? numer / denom : p;
-    let tier;
-    if (rate >= 0.80)      tier = "Simple";
-    else if (rate >= 0.60) tier = "Easy";
-    else if (rate >= 0.40) tier = "Medium";
-    else if (rate >= 0.20) tier = "Hard";
-    else                   tier = "Extreme";
     return {
       rate,
       percent: Math.round(rate * 100),
-      tier,
+      tier: rateToTier(rate),
       attempts: s.attempts,
       successes: s.successes,
       lowConfidence: s.attempts < LOW_CONFIDENCE_N,
@@ -125,6 +191,10 @@
           successes: row.successes || 0,
         };
       }
+      // Now that the cache is full, we have enough signal to recompute
+      // tier boundaries from the live distribution rather than the
+      // fallback static 20/40/60/80 split.
+      recomputeThresholds();
       // Tell the rest of the app the cache is ready so any already-mounted
       // puzzle headers can repaint.
       window.dispatchEvent(new CustomEvent("jetsets-stats-ready"));
@@ -148,6 +218,11 @@
       attempts: cur.attempts + 1,
       successes: cur.successes + (success ? 1 : 0),
     };
+    // A single new attempt won't shift quintiles meaningfully, but a
+    // burst of solves during a speedrun can. Recompute cheaply (one
+    // pass over the puzzle pool) so the tier label of the *next*
+    // puzzle reflects the freshly-updated distribution.
+    recomputeThresholds();
     window.dispatchEvent(new CustomEvent("jetsets-stats-updated", {
       detail: { puzzleKey: k },
     }));
@@ -170,6 +245,7 @@
         // optimistic bump so we don't double-count.
         if (error.code === "23505") {
           statsByKey[k] = cur;
+          recomputeThresholds();
           window.dispatchEvent(new CustomEvent("jetsets-stats-updated", {
             detail: { puzzleKey: k },
           }));
@@ -197,7 +273,13 @@
     getStats,
     computeRate,
     submitAttempt,
+    // Inspectors — useful from DevTools to see what the engine is doing.
+    // thresholds() returns the four boundary rates [p20, p40, p60, p80];
+    // a value of 0.43 in slot 1 means "Hard ↔ Medium boundary is 43%."
+    thresholds: () => tierThresholds.slice(),
+    recomputeThresholds,
     PRIOR_N,
     LOW_CONFIDENCE_N,
+    TIER_PERCENTILES,
   };
 })();
