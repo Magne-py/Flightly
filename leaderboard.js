@@ -69,19 +69,23 @@
     if (yourBest) yourBest.style.display = "none";
 
     const supabase = window.JetSetsAuth.client;
+    const withTimeout = window.JetSetsAuth.withTimeout || ((p) => p);
     const user = window.JetSetsAuth.currentUser();
     const userId = user ? user.id : null;
 
     try {
       // Top 100 by points desc; older runs win the tiebreaker so a
       // player who hit the score first holds the position.
-      const { data: top, error } = await supabase
-        .from("scores")
-        .select("id, points, solves, played_at, user_id, profiles(username)")
-        .eq("mode", currentMode)
-        .order("points", { ascending: false })
-        .order("played_at", { ascending: true })
-        .limit(100);
+      const { data: top, error } = await withTimeout(
+        supabase
+          .from("scores")
+          .select("id, points, solves, played_at, user_id, profiles(username)")
+          .eq("mode", currentMode)
+          .order("points", { ascending: false })
+          .order("played_at", { ascending: true })
+          .limit(100),
+        12000, "Loading leaderboard"
+      );
       if (error) throw error;
       if (myToken !== fetchToken) return; // stale, a newer fetch is in flight
 
@@ -90,14 +94,17 @@
       if (userId) {
         const inTop = top && top.some((r) => r.user_id === userId);
         if (!inTop) {
-          const { data: own } = await supabase
-            .from("scores")
-            .select("points, solves, played_at")
-            .eq("mode", currentMode)
-            .eq("user_id", userId)
-            .order("points", { ascending: false })
-            .order("played_at", { ascending: true })
-            .limit(1);
+          const { data: own } = await withTimeout(
+            supabase
+              .from("scores")
+              .select("points, solves, played_at")
+              .eq("mode", currentMode)
+              .eq("user_id", userId)
+              .order("points", { ascending: false })
+              .order("played_at", { ascending: true })
+              .limit(1),
+            8000, "Loading your best"
+          );
           if (myToken !== fetchToken) return;
           if (own && own.length) bestOutside = own[0];
         }
@@ -107,8 +114,11 @@
       renderTable(top || [], userId);
     } catch (err) {
       if (myToken !== fetchToken) return;
+      const msg = (err && err.code === "timeout")
+        ? "Connection timed out — try again."
+        : (err && err.message) ? err.message : "unknown error";
       tableBody.innerHTML =
-        `<tr><td colspan="5" class="lb-error">Couldn't load — ${escapeHtml(err.message || "unknown error")}</td></tr>`;
+        `<tr><td colspan="5" class="lb-error">Couldn't load — ${escapeHtml(msg)}</td></tr>`;
     }
   }
 
@@ -207,32 +217,41 @@
       return;
     }
     const supabase = window.JetSetsAuth.client;
+    const withTimeout = window.JetSetsAuth.withTimeout || ((p) => p);
 
     try {
       // Pull this user's full score history. Cap at 500 to bound the
       // payload — anyone playing more than 500 runs deserves a special
       // honor and a smarter pagination story.
-      const { data: runs, error } = await supabase
-        .from("scores")
-        .select("mode, points, solves, played_at")
-        .eq("user_id", userId)
-        .order("played_at", { ascending: false })
-        .limit(500);
+      const { data: runs, error } = await withTimeout(
+        supabase
+          .from("scores")
+          .select("mode, points, solves, played_at")
+          .eq("user_id", userId)
+          .order("played_at", { ascending: false })
+          .limit(500),
+        12000, "Loading player history"
+      );
       if (error) throw error;
 
       // Confirm the username from profiles in case the click came from a
       // row where it was missing or stale.
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("username, created_at")
-        .eq("id", userId)
-        .maybeSingle();
+      const { data: profile } = await withTimeout(
+        supabase
+          .from("profiles")
+          .select("username, created_at")
+          .eq("id", userId)
+          .maybeSingle(),
+        8000, "Loading profile"
+      );
       const username = (profile && profile.username) || knownUsername || "Player";
 
       if (ppTitle) ppTitle.textContent = username;
       renderProfileBody(runs || [], profile);
     } catch (err) {
-      const msg = (err && err.message) ? err.message : "Couldn't load profile.";
+      const msg = (err && err.code === "timeout")
+        ? "Connection timed out — try again."
+        : (err && err.message) ? err.message : "Couldn't load profile.";
       if (ppBest)   ppBest.innerHTML   = `<div class="player-profile-empty player-profile-error">${escapeHtml(msg)}</div>`;
       if (ppRecent) ppRecent.innerHTML = ``;
     }

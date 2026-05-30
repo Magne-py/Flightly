@@ -1578,12 +1578,18 @@
     }
   }
 
+  let speedrunSubmitInFlight = false;
   async function submitPendingScore() {
     if (!speedrunPendingSubmit || speedrunSubmitted) return;
+    // Concurrency guard: if a previous attempt is still pending, don't
+    // fire another one. Otherwise an auth-state flip in the middle of
+    // a save (sign-in / token refresh) would kick off a parallel insert.
+    if (speedrunSubmitInFlight) return;
     if (!window.JetSetsAuth || !window.JetSetsAuth.submitScore) {
       renderLeaderboardBlock("error", "Auth module unavailable.");
       return;
     }
+    speedrunSubmitInFlight = true;
     renderLeaderboardBlock("saving");
     try {
       await window.JetSetsAuth.submitScore(speedrunPendingSubmit);
@@ -1592,10 +1598,14 @@
     } catch (err) {
       if (err && err.code === "not_signed_in") {
         renderLeaderboardBlock("need-signin");
+      } else if (err && err.code === "timeout") {
+        renderLeaderboardBlock("error", "Connection timed out — try again.");
       } else {
         const msg = (err && err.message) ? err.message : "Couldn't save score.";
         renderLeaderboardBlock("error", msg);
       }
+    } finally {
+      speedrunSubmitInFlight = false;
     }
   }
 

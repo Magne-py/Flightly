@@ -192,13 +192,19 @@
     bootPromise = (async () => {
       try {
         const supabase = window.JetSetsAuth.client;
+        const withTimeout = window.JetSetsAuth.withTimeout || ((p) => p);
         // 880 puzzle pool maxes out around 880 rows × ~40 bytes ≈ 35 KB.
         // Supabase caps SELECT at 1000 rows by default; we add an explicit
         // range to be safe in case the pool grows past that later.
-        const { data, error } = await supabase
-          .from("puzzle_stats")
-          .select("puzzle_key, attempts, successes")
-          .range(0, 1999);
+        // 15s timeout — bulk fetches over slow networks or a cold-cache
+        // backend can be slow, but anything longer is a real problem.
+        const { data, error } = await withTimeout(
+          supabase
+            .from("puzzle_stats")
+            .select("puzzle_key, attempts, successes")
+            .range(0, 1999),
+          15000, "Loading puzzle stats"
+        );
         if (error) {
           console.warn("[stats] bulk fetch failed:", error.message);
           return;
@@ -251,16 +257,20 @@
 
     if (!window.JetSetsAuth || !window.JetSetsAuth.client) return;
     const supabase = window.JetSetsAuth.client;
+    const withTimeout = window.JetSetsAuth.withTimeout || ((p) => p);
     const userId = (window.JetSetsAuth.currentUser && window.JetSetsAuth.currentUser()) || null;
     try {
-      const { error } = await supabase
-        .from("puzzle_attempts")
-        .insert({
-          browser_id: browserId,
-          user_id: userId ? userId.id : null,
-          puzzle_key: k,
-          success: !!success,
-        });
+      const { error } = await withTimeout(
+        supabase
+          .from("puzzle_attempts")
+          .insert({
+            browser_id: browserId,
+            user_id: userId ? userId.id : null,
+            puzzle_key: k,
+            success: !!success,
+          }),
+        8000, "Recording puzzle attempt"
+      );
       if (error) {
         // 23505 = unique_violation — they already voted from this
         // browser. The server stays authoritative; revert the local
@@ -276,6 +286,16 @@
         console.warn("[stats] submit failed:", error.message);
       }
     } catch (err) {
+      // Most likely a withTimeout rejection. Revert the optimistic
+      // local bump so the cached stats don't drift from the server.
+      if (err && err.code === "timeout") {
+        statsByKey[k] = cur;
+        submittedKeys.delete(k);
+        recomputeThresholds();
+        window.dispatchEvent(new CustomEvent("jetsets-stats-updated", {
+          detail: { puzzleKey: k },
+        }));
+      }
       console.warn("[stats] submit threw:", err);
     }
   }

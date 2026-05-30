@@ -29,6 +29,28 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 let currentSession = null;     // current Supabase session, or null when signed-out
 let currentProfile = null;     // { id, username } once fetched
 
+// ---------- Network-call helper ----------
+// Wraps any thenable (notably the supabase client's PostgrestBuilder
+// returns) with a timeout. If the original promise hasn't resolved by
+// `ms`, withTimeout rejects with an Error carrying code "timeout" so
+// callers can distinguish a slow network from a permission failure.
+// The underlying promise is NOT cancelled — there's no API for that —
+// but the UI gets to react instead of spinning forever.
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const e = new Error((label || "Request") + " timed out after " + (ms / 1000) + "s");
+      e.code = "timeout";
+      reject(e);
+    }, ms);
+  });
+  return Promise.race([
+    Promise.resolve(promise).finally(() => clearTimeout(timer)),
+    timeout,
+  ]);
+}
+
 // ---------- DOM ----------
 const $ = (id) => document.getElementById(id);
 
@@ -114,28 +136,36 @@ async function renderHeader() {
 }
 
 // ---------- Auth flows ----------
+// Every supabase call below is wrapped in withTimeout so a stuck request
+// surfaces a clear "Connection timed out" error to the user instead of
+// hanging the UI on a perpetual "Saving…" / "Loading…" spinner.
+
 async function signUp(username, email, password) {
   // Username goes into auth metadata; the database trigger copies it into
   // public.profiles on insert.
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { username } },
-  });
+  const { data, error } = await withTimeout(
+    supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { username } },
+    }),
+    12000, "Sign-up"
+  );
   if (error) throw error;
   return data;
 }
 
 async function signIn(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email, password,
-  });
+  const { data, error } = await withTimeout(
+    supabase.auth.signInWithPassword({ email, password }),
+    12000, "Sign-in"
+  );
   if (error) throw error;
   return data;
 }
 
 async function signOut() {
-  const { error } = await supabase.auth.signOut();
+  const { error } = await withTimeout(supabase.auth.signOut(), 8000, "Sign-out");
   if (error) throw error;
 }
 
@@ -147,11 +177,14 @@ async function submitScore({ mode, points, solves }) {
     err.code = "not_signed_in";
     throw err;
   }
-  const { data, error } = await supabase
-    .from("scores")
-    .insert({ user_id: currentSession.user.id, mode, points, solves })
-    .select()
-    .single();
+  const { data, error } = await withTimeout(
+    supabase
+      .from("scores")
+      .insert({ user_id: currentSession.user.id, mode, points, solves })
+      .select()
+      .single(),
+    10000, "Saving score"
+  );
   if (error) throw error;
   return data;
 }
@@ -219,13 +252,20 @@ function wireForms() {
 // Normalise Supabase / Postgres errors into something a user can read.
 function friendlyError(err) {
   if (!err) return "Something went wrong.";
+  if (err.code === "timeout") {
+    return "Connection timed out — check your network and try again.";
+  }
   const msg = (err.message || String(err)).toLowerCase();
   if (msg.includes("invalid login credentials")) return "Wrong email or password.";
+  if (msg.includes("email not confirmed"))       return "Check your email and click the confirmation link before signing in.";
   if (msg.includes("user already registered"))   return "An account already exists for this email. Try signing in.";
   if (msg.includes("duplicate key") && msg.includes("username")) {
     return "That username is taken — pick another.";
   }
   if (msg.includes("rate limit")) return "Too many attempts — wait a minute and try again.";
+  if (msg.includes("failed to fetch") || msg.includes("networkerror")) {
+    return "Couldn't reach the server. Check your network and try again.";
+  }
   return err.message || "Something went wrong.";
 }
 
@@ -311,4 +351,7 @@ window.JetSetsAuth = {
   // Direct supabase client access for the leaderboard view (read-only
   // queries don't need to go through this module).
   client: supabase,
+  // Re-export the timeout wrapper so stats.js / leaderboard.js can
+  // protect their own supabase calls without duplicating the helper.
+  withTimeout,
 };
