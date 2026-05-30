@@ -1148,21 +1148,72 @@
     // click Start. Locking happens AFTER advanceSpeedrunPuzzle because
     // startPuzzle() re-enables them for normal play.
     lockSpeedrunControls();
+    // Drop the curtain over the route + meta. Removed in beginSpeedrunRun
+    // the moment the player clicks Start, just before the countdown plays.
+    document.body.classList.add("speedrun-pre-start");
     updateSpeedrunHud();
   }
 
-  // Player clicked Start — arm the countdown and hand control back to the
-  // input box so they can start typing immediately.
+  // Player clicked Start — reveal the route, run a 3-2-1-Go countdown,
+  // THEN start the 90s timer and hand control to the input box. The
+  // countdown is gated on speedrunStarted so the player can't double-
+  // click their way past it.
   function beginSpeedrunRun() {
     if (!speedrunActive || speedrunStarted) return;
     speedrunStarted = true;
-    const now = Date.now();
-    speedrunStartTime = now;
-    speedrunDeadline = now + SPEEDRUN_DURATION_MS;
-    startSpeedrunTimer();
-    unlockSpeedrunControls();
-    updateSpeedrunHud();
-    if (input) input.focus();
+    // Drop the pre-start curtain — the route is now visible.
+    document.body.classList.remove("speedrun-pre-start");
+    // Hide the Start button so it can't be re-clicked, and reveal the
+    // (still paused) time block so the player sees the slot the timer
+    // will land in.
+    if (speedrunStartBtn) speedrunStartBtn.style.display = "none";
+    const timeBlock = document.getElementById("speedrun-time-block");
+    if (timeBlock) timeBlock.style.display = "";
+    runSpeedrunCountdown(() => {
+      const now = Date.now();
+      speedrunStartTime = now;
+      speedrunDeadline = now + SPEEDRUN_DURATION_MS;
+      startSpeedrunTimer();
+      unlockSpeedrunControls();
+      updateSpeedrunHud();
+      if (input) input.focus();
+    });
+  }
+
+  // Plays a 3 → 2 → 1 → Go! sequence over a fullscreen overlay. Each
+  // number holds for one second; "Go!" flashes for ~450ms before the
+  // overlay clears and onDone fires. Controls stay locked the entire
+  // time so the player can't sneak in moves before the clock starts.
+  function runSpeedrunCountdown(onDone) {
+    const overlay = document.getElementById("speedrun-countdown");
+    let numEl     = document.getElementById("speedrun-countdown-num");
+    if (!overlay || !numEl) { onDone && onDone(); return; }
+    const steps = [
+      { text: "3",   hold: 1000, go: false },
+      { text: "2",   hold: 1000, go: false },
+      { text: "1",   hold: 1000, go: false },
+      { text: "Go!", hold: 450,  go: true  },
+    ];
+    overlay.classList.add("visible");
+    let i = 0;
+    function step() {
+      if (i >= steps.length) {
+        overlay.classList.remove("visible");
+        overlay.classList.remove("go");
+        if (onDone) onDone();
+        return;
+      }
+      const s = steps[i++];
+      overlay.classList.toggle("go", !!s.go);
+      // Force the animation to re-fire on each step by swapping the
+      // span for a fresh clone — keyframes only replay on a new node.
+      const fresh = numEl.cloneNode(false);
+      fresh.textContent = s.text;
+      numEl.parentNode.replaceChild(fresh, numEl);
+      numEl = fresh;
+      setTimeout(step, s.hold);
+    }
+    step();
   }
 
   // Pre-start: disable the controls so the player can't sneak in moves
@@ -1314,6 +1365,11 @@
     // showResult's own toggle when the run isn't active).
     if (giveUpBtn && showHud) giveUpBtn.style.display = "none";
     document.body.classList.toggle("speedrun-active", showHud);
+    // When the HUD goes away (run ended or mode switched), the pre-start
+    // curtain has to come down with it. Otherwise a player who quits
+    // a speedrun mid-curtain would carry the hidden route into a
+    // subsequent Daily/Random load.
+    if (!showHud) document.body.classList.remove("speedrun-pre-start");
     if (!showHud) return;
 
     // Pre-start: Start button visible, timer hidden. Once started: swap.

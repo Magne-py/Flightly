@@ -761,6 +761,56 @@
     transition: color 0.12s, border-color 0.12s, background 0.12s;
   }
   .speedrun-quit:hover { border-color: var(--red); }
+  /* Speedrun pre-start curtain — replaces the route + meta until the
+     player clicks Start. Hidden by default; body.speedrun-pre-start
+     reveals it and hides the live route. */
+  .speedrun-curtain { display: none; }
+  body.speedrun-pre-start .speedrun-curtain {
+    display: block; text-align: center; padding: 26px 12px 14px;
+  }
+  .speedrun-curtain-title {
+    color: var(--accent); font-size: 20px; font-weight: 700; letter-spacing: 0.3px;
+  }
+  .speedrun-curtain-sub {
+    color: var(--muted); font-size: 13px; line-height: 1.55;
+    margin-top: 6px; max-width: 460px; margin-left: auto; margin-right: auto;
+  }
+  body.speedrun-pre-start .route-display,
+  body.speedrun-pre-start .puzzle-meta { display: none !important; }
+
+  /* Big centered countdown overlay. Sits above everything via a high
+     z-index; non-interactive so clicks pass through (in case the player
+     desperately tries to type during the count, but the controls are
+     locked anyway). Visible state animates a soft scale-pulse. */
+  .speedrun-countdown {
+    position: fixed; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    pointer-events: none; z-index: 200;
+    background: rgba(7, 16, 28, 0.25);
+  }
+  .speedrun-countdown.visible { display: flex; }
+  .speedrun-countdown-num {
+    font-size: 160px; font-weight: 800; color: var(--accent);
+    letter-spacing: -2px; line-height: 1;
+    text-shadow: 0 0 40px rgba(78, 168, 255, 0.6);
+    animation: speedrun-countdown-pulse 0.9s ease-out both;
+  }
+  .speedrun-countdown.go .speedrun-countdown-num {
+    color: var(--green); font-size: 110px;
+    text-shadow: 0 0 60px rgba(87, 194, 106, 0.7);
+    animation: speedrun-countdown-go 0.45s ease-out both;
+  }
+  @keyframes speedrun-countdown-pulse {
+    0%   { transform: scale(0.55); opacity: 0; }
+    25%  { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1.0);  opacity: 1; }
+  }
+  @keyframes speedrun-countdown-go {
+    0%   { transform: scale(0.5);  opacity: 0; }
+    20%  { transform: scale(1.25); opacity: 1; }
+    100% { transform: scale(1.0);  opacity: 1; }
+  }
+
   /* Give the puzzle-header room on the sides during a speedrun so the
      corners don't crowd the centered route-display. */
   body.speedrun-active .puzzle-header { padding-left: 110px; padding-right: 110px; }
@@ -1408,6 +1458,13 @@
           <div class="speedrun-corner-sub"><span id="speedrun-solved">0</span> solved</div>
         </div>
       </div>
+      <!-- "Ready when you are" curtain that replaces the route + meta
+           before a speedrun's countdown starts. Hidden by default; the
+           body.speedrun-pre-start class swaps it in. -->
+      <div class="speedrun-curtain" id="speedrun-curtain">
+        <div class="speedrun-curtain-title">Ready when you are.</div>
+        <div class="speedrun-curtain-sub">Click <b>Start</b> to reveal the route. You'll get a 3-second countdown before the clock begins.</div>
+      </div>
       <div class="route-display">
         <div class="endpoint">
           <div class="code" id="start-code">—</div>
@@ -1755,6 +1812,13 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- Speedrun countdown — big centered 3 / 2 / 1 / Go! overlay that
+     plays after the player clicks Start and before the 90s timer
+     begins. JS toggles .visible and rewrites .textContent. -->
+<div class="speedrun-countdown" id="speedrun-countdown" aria-hidden="true">
+  <span class="speedrun-countdown-num" id="speedrun-countdown-num"></span>
 </div>
 
 <div class="toast" id="toast"></div>
