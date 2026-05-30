@@ -123,14 +123,180 @@
       const username = (r.profiles && r.profiles.username) || "unknown";
       const isMe = userId && r.user_id === userId;
       const tag = isMe ? `<span class="lb-me-tag">YOU</span>` : "";
+      // The username is a clickable link to the player profile modal.
+      // We embed user_id + username as data attributes so a single
+      // delegated click handler (below) can read what to fetch.
+      const userCell =
+        `<span class="lb-user-link" data-user-id="${escapeAttr(r.user_id)}" data-username="${escapeAttr(username)}" tabindex="0" role="button">${escapeHtml(username)}</span>`;
       return `<tr class="${isMe ? "lb-row-me" : ""}">
         <td class="lb-rank">${i + 1}</td>
-        <td class="lb-user">${escapeHtml(username)}${tag}</td>
+        <td class="lb-user">${userCell}${tag}</td>
         <td class="lb-points">${r.points}</td>
         <td class="lb-solves">${r.solves}</td>
         <td class="lb-date">${formatDate(r.played_at)}</td>
       </tr>`;
     }).join("");
+  }
+
+  function escapeAttr(s) {
+    return String(s == null ? "" : s).replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  }
+
+  // Delegated click handler — one listener on the tbody catches clicks
+  // on any username link regardless of how many rows are rendered.
+  if (tableBody) {
+    tableBody.addEventListener("click", (e) => {
+      const el = e.target.closest(".lb-user-link");
+      if (!el) return;
+      const userId = el.getAttribute("data-user-id");
+      const username = el.getAttribute("data-username");
+      if (userId) openPlayerProfile(userId, username);
+    });
+    // Keyboard accessibility — Enter / Space activates a focused link.
+    tableBody.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const el = e.target.closest(".lb-user-link");
+      if (!el) return;
+      e.preventDefault();
+      const userId = el.getAttribute("data-user-id");
+      const username = el.getAttribute("data-username");
+      if (userId) openPlayerProfile(userId, username);
+    });
+  }
+
+  // ---------- Player profile modal ----------
+  // Friendly labels for the 13 speedrun modes so the profile reads
+  // naturally without hyphens / slugs.
+  const MODE_LABEL = MODES.reduce((acc, m) => {
+    acc[m.key] = m.label;
+    return acc;
+  }, {});
+
+  const ppModal       = document.getElementById("player-profile-modal");
+  const ppTitle       = document.getElementById("player-profile-title");
+  const ppSummary     = document.getElementById("player-profile-summary");
+  const ppBest        = document.getElementById("player-profile-best");
+  const ppRecent      = document.getElementById("player-profile-recent");
+  const ppClose       = document.getElementById("player-profile-close");
+
+  if (ppClose)  ppClose.addEventListener("click", closePlayerProfile);
+  if (ppModal)  ppModal.addEventListener("click", (e) => { if (e.target === ppModal) closePlayerProfile(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ppModal && ppModal.style.display === "flex") {
+      closePlayerProfile();
+    }
+  });
+
+  function closePlayerProfile() {
+    if (ppModal) ppModal.style.display = "none";
+  }
+
+  async function openPlayerProfile(userId, knownUsername) {
+    if (!ppModal || !userId) return;
+    // Render the modal in its loading shape immediately so the click feels
+    // responsive even when the network is slow.
+    ppModal.style.display = "flex";
+    if (ppTitle) ppTitle.textContent = knownUsername || "Player";
+    if (ppSummary) ppSummary.innerHTML = "";
+    if (ppBest)    ppBest.innerHTML    = `<div class="player-profile-empty">Loading…</div>`;
+    if (ppRecent)  ppRecent.innerHTML  = `<div class="player-profile-empty">Loading…</div>`;
+
+    if (!window.JetSetsAuth || !window.JetSetsAuth.client) {
+      if (ppBest)   ppBest.innerHTML   = `<div class="player-profile-empty player-profile-error">Auth module not ready.</div>`;
+      if (ppRecent) ppRecent.innerHTML = ``;
+      return;
+    }
+    const supabase = window.JetSetsAuth.client;
+
+    try {
+      // Pull this user's full score history. Cap at 500 to bound the
+      // payload — anyone playing more than 500 runs deserves a special
+      // honor and a smarter pagination story.
+      const { data: runs, error } = await supabase
+        .from("scores")
+        .select("mode, points, solves, played_at")
+        .eq("user_id", userId)
+        .order("played_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+
+      // Confirm the username from profiles in case the click came from a
+      // row where it was missing or stale.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username, created_at")
+        .eq("id", userId)
+        .maybeSingle();
+      const username = (profile && profile.username) || knownUsername || "Player";
+
+      if (ppTitle) ppTitle.textContent = username;
+      renderProfileBody(runs || [], profile);
+    } catch (err) {
+      const msg = (err && err.message) ? err.message : "Couldn't load profile.";
+      if (ppBest)   ppBest.innerHTML   = `<div class="player-profile-empty player-profile-error">${escapeHtml(msg)}</div>`;
+      if (ppRecent) ppRecent.innerHTML = ``;
+    }
+  }
+
+  function renderProfileBody(runs, profile) {
+    // Summary line: total runs + modes played + member since.
+    const modesPlayed = new Set(runs.map((r) => r.mode));
+    const summaryParts = [
+      `<strong>${runs.length}</strong>&nbsp;run${runs.length === 1 ? "" : "s"}`,
+      `across&nbsp;<strong>${modesPlayed.size}</strong>&nbsp;mode${modesPlayed.size === 1 ? "" : "s"}`,
+    ];
+    if (profile && profile.created_at) {
+      summaryParts.push(`member since&nbsp;${formatDate(profile.created_at)}`);
+    }
+    if (ppSummary) ppSummary.innerHTML = summaryParts.join("&nbsp;·&nbsp;");
+
+    // Best per mode — collapse runs[] by mode, keep the row with the
+    // highest points (earlier wins ties). Sort modes by best-points desc.
+    const bestByMode = {};
+    for (const r of runs) {
+      const cur = bestByMode[r.mode];
+      if (!cur
+          || r.points > cur.points
+          || (r.points === cur.points && new Date(r.played_at) < new Date(cur.played_at))) {
+        bestByMode[r.mode] = r;
+      }
+    }
+    const bestRows = Object.entries(bestByMode)
+      .sort((a, b) => b[1].points - a[1].points);
+
+    if (ppBest) {
+      if (!bestRows.length) {
+        ppBest.innerHTML = `<div class="player-profile-empty">No runs yet.</div>`;
+      } else {
+        ppBest.innerHTML = bestRows.map(([mode, r]) => {
+          const label = MODE_LABEL[mode] || mode;
+          return `<div class="pp-row">
+            <span class="pp-mode">${escapeHtml(label)}</span>
+            <span class="pp-points">${r.points}&nbsp;pts</span>
+            <span class="pp-solves">${r.solves}&nbsp;solved</span>
+            <span class="pp-date">${formatDate(r.played_at)}</span>
+          </div>`;
+        }).join("");
+      }
+    }
+
+    // Recent runs — first 20 from the already-sorted list (we ordered by
+    // played_at desc above).
+    if (ppRecent) {
+      if (!runs.length) {
+        ppRecent.innerHTML = `<div class="player-profile-empty">No runs yet.</div>`;
+      } else {
+        ppRecent.innerHTML = runs.slice(0, 20).map((r) => {
+          const label = MODE_LABEL[r.mode] || r.mode;
+          return `<div class="pp-row">
+            <span class="pp-mode">${escapeHtml(label)}</span>
+            <span class="pp-points">${r.points}&nbsp;pts</span>
+            <span class="pp-solves">${r.solves}&nbsp;solved</span>
+            <span class="pp-date">${formatDate(r.played_at)}</span>
+          </div>`;
+        }).join("");
+      }
+    }
   }
 
   function renderYourBest(best) {
