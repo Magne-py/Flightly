@@ -1892,6 +1892,82 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- First-visit "How to play" card. Reuses the .auth-modal scrim; shown once,
+     gated by localStorage. Self-contained: styles + markup + boot logic. -->
+<style>
+  .howto-panel { max-width: 460px; }
+  .howto-panel .auth-modal-title { margin-bottom: 6px; }
+  .howto-lead { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+  .howto-steps { margin: 0 0 16px; padding: 0; list-style: none; counter-reset: howto; }
+  .howto-steps li {
+    position: relative; padding: 0 0 11px 30px; color: var(--text);
+    font-size: 13.5px; line-height: 1.5;
+  }
+  .howto-steps li::before {
+    counter-increment: howto; content: counter(howto);
+    position: absolute; left: 0; top: 0;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); color: #06121f;
+    font-size: 12px; font-weight: 800; text-align: center; line-height: 20px;
+  }
+  .howto-steps li b { color: var(--accent); }
+  .howto-key {
+    border-top: 1px solid var(--border); padding-top: 12px; margin-bottom: 18px;
+    display: grid; gap: 7px;
+  }
+  .howto-key .legend-row { display: flex; gap: 9px; align-items: flex-start;
+    font-size: 12.5px; line-height: 1.4; color: var(--text); }
+  .howto-key b { color: var(--text); }
+  .howto-go { width: 100%; }
+</style>
+<div id="howto-modal" class="auth-modal" role="dialog" aria-modal="true"
+     aria-labelledby="howto-title" style="display:none">
+  <div class="auth-modal-panel howto-panel">
+    <button id="howto-close" class="auth-modal-close" type="button"
+            aria-label="Close">&times;</button>
+    <h2 id="howto-title" class="auth-modal-title">How to play</h2>
+    <p class="howto-lead">Connect the two airports with the shortest possible flight route.</p>
+    <ol class="howto-steps">
+      <li>Each puzzle gives you a <b>start</b> and a <b>destination</b> airport.</li>
+      <li>Type the codes for the <b>layovers</b> in between — every leg has to be a real direct flight.</li>
+      <li>Press <b>Enter</b> to submit a route. You get <b>6 tries</b>.</li>
+      <li>Tiles light up to show how close you are:</li>
+    </ol>
+    <div class="howto-key">
+      <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — right airport, right slot.</div></div>
+      <div class="legend-row"><div class="swatch yellow"></div><div><b>Yellow</b> — right airport, wrong slot (or no flight from the previous one).</div></div>
+      <div class="legend-row"><div class="swatch orange"></div><div><b>Orange</b> — a real flight, just not on the shortest route.</div></div>
+      <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight from the previous airport.</div></div>
+      <div class="legend-row"><div class="swatch purple"></div><div><b>Purple</b> — the best route possible: shortest hops and fewest km.</div></div>
+    </div>
+    <button id="howto-go" class="auth-submit btn howto-go" type="button">Got it — let's fly</button>
+  </div>
+</div>
+<script>
+  // Show the how-to card once, on a visitor's first time. Wrapped so a
+  // blocked localStorage (private mode) can never break the game.
+  (function () {
+    var KEY = "jetsets_howto_seen";
+    var modal = document.getElementById("howto-modal");
+    if (!modal) return;
+    var seen = false;
+    try { seen = localStorage.getItem(KEY) === "1"; } catch (e) {}
+    function dismiss() {
+      modal.style.display = "none";
+      try { localStorage.setItem(KEY, "1"); } catch (e) {}
+    }
+    if (!seen) {
+      modal.style.display = "flex";
+      if (window.JS_track) JS_track("howto-shown");
+    }
+    var goBtn = document.getElementById("howto-go");
+    var closeBtn = document.getElementById("howto-close");
+    if (goBtn) goBtn.addEventListener("click", dismiss);
+    if (closeBtn) closeBtn.addEventListener("click", dismiss);
+    modal.addEventListener("click", function (e) { if (e.target === modal) dismiss(); });
+  })();
+</script>
+
 <script src="data/airports.js"></script>
 <script src="data/routes.js"></script>
 <script src="data/puzzles.js"></script>
