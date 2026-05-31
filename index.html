@@ -1918,6 +1918,12 @@
   .howto-key .legend-row { display: flex; gap: 9px; align-items: flex-start;
     font-size: 12.5px; line-height: 1.4; color: var(--text); }
   .howto-key b { color: var(--text); }
+  .howto-modes {
+    margin: 0 0 14px; padding: 11px 13px;
+    background: var(--bg-alt); border: 1px solid var(--border); border-radius: 10px;
+    font-size: 13px; line-height: 1.5; color: var(--muted); text-align: center;
+  }
+  .howto-modes b { color: var(--accent); }
   .howto-go { width: 100%; }
 </style>
 <div id="howto-modal" class="auth-modal" role="dialog" aria-modal="true"
@@ -1940,6 +1946,7 @@
       <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight from the previous airport.</div></div>
       <div class="legend-row"><div class="swatch purple"></div><div><b>Purple</b> — the best route possible: shortest hops and fewest km.</div></div>
     </div>
+    <p class="howto-modes">Play the <b>Daily</b> puzzle, <b>train</b> on practice rounds, then <b>compete globally</b> with <b>Speedruns</b>.</p>
     <button id="howto-go" class="auth-submit btn howto-go" type="button">Got it — let's fly</button>
   </div>
 </div>
