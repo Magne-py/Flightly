@@ -147,10 +147,37 @@
       return;
     }
     rates.sort((a, b) => a - b);
+    // Cluster-aware percentile. The puzzle pool's posterior rates can
+    // pile up at a handful of discrete values (early on, every rate IS
+    // its prior_p, so there are only 5 distinct rates total). A naive
+    // percentile lands AT one of those cluster values; the `rate >=
+    // threshold` check then folds the entire cluster into the UPPER
+    // tier, leaving the LOWER tier empty.
+    //
+    // Fix: for each percentile cutpoint, find the cluster the position
+    // lands in, then put the threshold at the MIDPOINT between this
+    // cluster's value and the next distinct rate. That way the cluster
+    // falls into the lower tier and the next one into the upper tier
+    // — which is what "5% threshold" naturally means.
+    //
+    // Once player attempts spread the posterior rates across many
+    // distinct values, the "next distinct rate" sits just above the
+    // percentile rate and this becomes a no-op refinement.
     const at = (q) => {
-      // Linear-interpolation flavour of percentile, clamped to indices.
       const idx = Math.max(0, Math.min(rates.length - 1, Math.floor(rates.length * q)));
-      return rates[idx];
+      const cur = rates[idx];
+      // Walk forward until we find a rate strictly greater than cur
+      // (i.e. the start of the next cluster).
+      let nextIdx = idx + 1;
+      while (nextIdx < rates.length && rates[nextIdx] === cur) nextIdx++;
+      if (nextIdx >= rates.length) {
+        // Cluster extends to the end of the distribution — no next
+        // cluster to bound against. Pull the threshold just below the
+        // cluster value so members are still classified into the
+        // upper tier (Simple, for the top threshold).
+        return Math.max(0, cur - 0.0001);
+      }
+      return (cur + rates[nextIdx]) / 2;
     };
     tierThresholds = TIER_PERCENTILES.map(at);
     window.dispatchEvent(new CustomEvent("jetsets-tiers-updated", {
