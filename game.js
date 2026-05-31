@@ -629,19 +629,17 @@
   }
 
   // ---------- Grading ----------
-  // Per-slot color rules (independent of any other slot's leg validity):
-  //   green  — the player's airport at slot k matches the BEST-MATCHING
-  //            shortest path at position k+1. "Best-matching" = the single
-  //            shortest path from start to dest that aligns with the largest
-  //            number of the player's filled slots simultaneously. This
-  //            guarantees that all green slots in a row coexist on the SAME
-  //            shortest path (the "same solution" requirement).
-  //   yellow — airport appears somewhere on at least one shortest path, but
-  //            not at the best-matching position. Yellow fires regardless of
-  //            whether the previous leg was a real flight.
-  //   orange — neither green nor yellow, but there's a real flight from the
-  //            previous airport AND there's some ≤MAX onward path to dest.
-  //   red    — none of the above.
+  // Traffic-light, leg-based grading. Each cell is colored by the flight
+  // LEADING INTO it — the hop from the previous airport (start for slot 0):
+  //   green  — that hop is a real flight AND it stays on a shortest route
+  //            (it cuts the hop-distance-to-destination by exactly 1).
+  //   yellow — that hop is a real flight, but it's a detour: it does not
+  //            advance you along a shortest route (you can still finish,
+  //            you're just adding stops/distance).
+  //   red    — no flight exists from the previous airport, OR flying here
+  //            strands you (no onward path reaches dest in the stops left).
+  // Purple is NOT a grading color — it's reserved for the best-route win
+  // (shortest hops AND fewest km), painted on the finished row.
   // The row "wins" if start → filled[0] → … → filled[n-1] → dest are all
   // real flights, regardless of the per-slot colors.
   function grade(row) {
@@ -666,27 +664,23 @@
       if (!ACTIVE_ROUTES[prev] || !ACTIVE_ROUTES[prev].includes(puzzle.dest)) fullyConnects = false;
     }
 
-    // 2. Find the shortest path that best matches the player's submission.
-    //    Slots whose airport matches this path get green.
-    const best = n ? computeBestMatchingPath(filled) : null;
-
-    // 3. Independent per-slot grading — no cascading red.
+    // 2. Leg-based traffic-light grading. Each hop is judged on its own.
     prev = puzzle.start;
     for (let i = 0; i < n; i++) {
       const { code, slot } = filled[i];
       const legValid = !!(ACTIVE_ROUTES[prev] && ACTIVE_ROUTES[prev].includes(code));
-      const matchesBest = !!(best && best.path[slot + 1] === code);
-      const onShortestPath = shortestPathAirports.has(code);
-      const onwardHops = distToDest[code];
+      const onward = distToDest[code];           // hops from this airport to dest
+      const prevOnward = distToDest[prev];        // hops from previous airport to dest
+      const canFinish = onward !== undefined && onward <= (SLOTS - slot);
+      // A hop is "on a shortest route" when it moves you one hop closer to
+      // the destination (shortest-path BFS distance drops by exactly 1).
+      const staysShortest = onward !== undefined && prevOnward !== undefined
+                            && onward === prevOnward - 1;
 
-      if (matchesBest) {
+      if (legValid && canFinish && staysShortest) {
         colors[slot] = "green";
-      } else if (onShortestPath) {
-        // Yellow precedes red: even if the previous leg was invalid, an
-        // airport that's on a shortest path is more useful info than red.
+      } else if (legValid && canFinish) {
         colors[slot] = "yellow";
-      } else if (legValid && onwardHops !== undefined && onwardHops <= (SLOTS - slot)) {
-        colors[slot] = "orange";
       } else {
         colors[slot] = "red";
       }

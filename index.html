@@ -1622,11 +1622,10 @@
     <details class="legend">
       <summary>How grading works</summary>
       <div class="legend-body">
-        <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — right airport, right slot. A finished row paints every cell green.</div></div>
-        <div class="legend-row"><div class="swatch yellow"></div><div><b>Yellow</b> — right airport, but wrong slot <i>or</i> no flight from the previous one.</div></div>
-        <div class="legend-row"><div class="swatch orange"></div><div><b>Orange</b> — flight exists from the previous airport, just not on the shortest route.</div></div>
-        <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight from the previous airport, or no onward path to the destination.</div></div>
-        <div class="legend-row"><div class="swatch purple"></div><div><b>Purple</b> — best route possible: shortest hops <i>and</i> fewest km. Pays 2.0×.</div></div>
+        <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — a real flight that stays on the shortest route.</div></div>
+        <div class="legend-row"><div class="swatch yellow"></div><div><b>Yellow</b> — a real flight, but a detour off the shortest route.</div></div>
+        <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight from the previous airport, or a dead end.</div></div>
+        <div class="legend-row"><div class="swatch purple"></div><div><b>Purple</b> — the best route possible: shortest hops <i>and</i> fewest km. Pays 2.0×.</div></div>
       </div>
     </details>
 
@@ -1666,43 +1665,47 @@
 
     <div class="about-card">
       <h2>How grading works</h2>
-      <p class="muted">After you submit a row, every cell is colored independently:</p>
+      <p class="muted">After you submit a row, each cell is colored by the flight leading into it — the hop from the previous airport (or from the start):</p>
       <div class="grade-table">
         <div class="swatch green"></div>
         <div><b>Green</b></div>
-        <div>The airport sits on a shortest route <i>and</i> in the correct slot. When you complete the journey, every filled cell in that row lights up green — the win is the win, regardless of how many stops you used.</div>
+        <div>That hop is a real flight <i>and</i> it stays on a shortest route — it moves you one hop closer to the destination. A row of all greens is a shortest-length route.</div>
 
         <div class="swatch yellow"></div>
         <div><b>Yellow</b></div>
-        <div>The airport sits on a shortest route, but either you placed it in a slot the route doesn't use, <i>or</i> the previous airport doesn't have a direct flight to it (so the leg into yellow won't fly). The airport itself is right — what's around it isn't.</div>
-
-        <div class="swatch orange"></div>
-        <div><b>Orange</b></div>
-        <div>A valid flight exists from the previous airport and you can still reach the destination — just via a longer-than-shortest path.</div>
+        <div>That hop is a real flight, but it's a detour — it doesn't advance you along a shortest route. You can still reach the destination; you're just adding stops or distance.</div>
 
         <div class="swatch red"></div>
         <div><b>Red</b></div>
-        <div>No flight exists from the previous airport, or no onward path reaches the destination from here.</div>
+        <div>No flight exists from the previous airport, <i>or</i> flying here strands you — there's no onward path to the destination in the stops you have left.</div>
 
         <div class="swatch purple"></div>
         <div><b>Purple</b></div>
-        <div>The absolute best possible route — shortest hops <i>and</i> the fewest kilometres flown across all shortest-hop options. Only one purple win exists per puzzle, and it pays a 2.0× scoring bonus.</div>
+        <div>The absolute best route — shortest hops <i>and</i> the fewest kilometres flown across all shortest-hop options. When you land it, the finished row turns purple instead of green and pays a 2.0× scoring bonus.</div>
       </div>
 
       <details class="legend about-legend">
-        <summary>Confusing grading patterns — worked examples</summary>
+        <summary>Reading the colors — worked examples</summary>
         <div class="legend-body">
           <p class="legend-para">
-            Cells are graded <b>per-slot, independently</b>. Each slot is checked against the single shortest route that best matches your row, so neighbouring cells can disagree in ways that look strange at first. Here are the patterns that surprise most players:
+            Every tile is graded by the flight leading into it — the hop from the previous airport (or from the start). So a color describes that one leg, not the airport on its own. A few patterns worth knowing:
           </p>
 
           <div class="grade-example">
             <div class="grade-example-row">
               <span class="ge-cell green">CDG</span>
-              <span class="ge-cell orange">MAD</span>
+              <span class="ge-cell yellow">MAD</span>
               <span class="ge-cell green">DXB</span>
             </div>
-            <p class="grade-example-text"><b>Green → Orange → Green.</b> Slot 1 (CDG) and slot 3 (DXB) both sit on the shortest path; slot 2 (MAD) doesn't, but a real flight exists from MAD that eventually still reaches the destination. Because each slot is graded independently of its neighbours, a bad middle stop doesn't poison the rest of the row. <i>Fix:</i> swap MAD for whichever airport the shortest route uses between CDG and DXB.</p>
+            <p class="grade-example-text"><b>Green → Yellow → Green.</b> The hops into CDG and DXB are real flights that stay on a shortest route. The hop into MAD is a real flight too, but a detour — it doesn't move you closer along the shortest path. Each leg is judged on its own, so one detour in the middle doesn't condemn the tiles around it. <i>Fix:</i> swap MAD for the airport the shortest route uses between CDG and DXB.</p>
+          </div>
+
+          <div class="grade-example">
+            <div class="grade-example-row">
+              <span class="ge-cell green">LHR</span>
+              <span class="ge-cell red">QQQ</span>
+            </div>
+            <p class="grade-example-text"><b>Green then red.</b> The hop into LHR is a real flight on a shortest route. The hop into QQQ is red because either there's no flight from LHR to QQQ, or QQQ can't reach the destination in the stops you have left. <i>Fix:</i> keep LHR, replace QQQ with a hub LHR actually flies to — the Learn page lists every connection.</p>
           </div>
 
           <div class="grade-example">
@@ -1712,7 +1715,7 @@
               <span class="ge-cell green">SIN</span>
               <span class="ge-cell green">SYD</span>
             </div>
-            <p class="grade-example-text"><b>An all-green row that's longer than the shortest path.</b> Once you complete the journey, every filled cell is repainted green — the win is a win. The result panel will tell you the shortest possible was fewer stops, so you can chase a higher score next round, but the row itself reads as "you got there." <i>Fix:</i> compare against the shortest route shown in the result panel and try to drop a stop next time.</p>
+            <p class="grade-example-text"><b>An all-green completed row.</b> Finishing the journey repaints every filled cell green — you got there. If a shorter route existed, the result panel shows it so you can chase a higher score next round. (Mid-game, a detour leg shows yellow; completing the route repaints the whole row green.)</p>
           </div>
 
           <div class="grade-example">
@@ -1720,45 +1723,11 @@
               <span class="ge-cell purple">DXB</span>
               <span class="ge-cell purple">SIN</span>
             </div>
-            <p class="grade-example-text"><b>An all-purple row.</b> You hit the puzzle's shortest hop count <i>and</i> picked the route with the fewest kilometres flown — the single tightest path through the network. Multiple shortest-hop routes can exist, but only one (or a handful tied for fewest km) trigger the purple win and the 2.0× scoring bonus.</p>
-          </div>
-
-          <div class="grade-example">
-            <div class="grade-example-row">
-              <span class="ge-cell red">XYZ</span>
-              <span class="ge-cell yellow">AMS</span>
-              <span class="ge-cell orange">DOH</span>
-            </div>
-            <p class="grade-example-text"><b>Yellow after a red leg.</b> Yellow doesn't require the previous leg to fly — if an airport is on a shortest route (just in the wrong slot), we still tell you. Even though the chain leading up to AMS broke, AMS is a useful airport to keep — just reposition it. <i>Fix:</i> move AMS to the slot where it belongs and replace XYZ.</p>
-          </div>
-
-          <div class="grade-example">
-            <div class="grade-example-row">
-              <span class="ge-cell green">LHR</span>
-              <span class="ge-cell yellow">DXB</span>
-              <span class="ge-cell orange">SIN</span>
-            </div>
-            <p class="grade-example-text"><b>Green then Yellow — same slot the shortest route uses, but no flight from your previous airport.</b> Yellow doesn't always mean "wrong slot." Here DXB <i>is</i> on a shortest route <i>and</i> sits in the slot where that route puts it — but there's no direct flight from LHR to DXB on this particular shortest path, so the leg between green and yellow is broken. The grader marks DXB yellow rather than green to flag that the connection won't fly, even though the airport itself is right. <i>Fix:</i> either swap LHR for an airport that does fly to DXB, or leave LHR and replace DXB with a hub that LHR connects to and that still leads to the destination.</p>
-          </div>
-
-          <div class="grade-example">
-            <div class="grade-example-row">
-              <span class="ge-cell yellow">FRA</span>
-              <span class="ge-cell yellow">IST</span>
-            </div>
-            <p class="grade-example-text"><b>Two yellows in a row.</b> Both airports are on a shortest route, but neither is in the right slot. Often this means you got the right pair but in reverse, or you need to drop a stop and shift the rest down. <i>Fix:</i> try swapping the two airports' positions next round.</p>
-          </div>
-
-          <div class="grade-example">
-            <div class="grade-example-row">
-              <span class="ge-cell green">LHR</span>
-              <span class="ge-cell red">QQQ</span>
-            </div>
-            <p class="grade-example-text"><b>Green then red.</b> Slot 1 nailed the shortest route's first hop, but slot 2 is unreachable from LHR — or it can't reach the destination at all. <i>Fix:</i> keep LHR, replace QQQ with a connecting hub from the Learn page connections list.</p>
+            <p class="grade-example-text"><b>An all-purple row.</b> You hit the puzzle's shortest hop count <i>and</i> the route with the fewest kilometres flown — the single tightest path through the network. Only that best route turns the finished row purple, and it pays the 2.0× scoring bonus.</p>
           </div>
 
           <p class="legend-para" style="margin-top: 12px;">
-            The cardinal rule: <b>treat each cell as its own verdict.</b> A red doesn't mean everything after it is wrong, and a green doesn't validate the cells before it.
+            Rule of thumb: <b>green</b> = this leg keeps you on the shortest route, <b>yellow</b> = it flies but wanders, <b>red</b> = it doesn't fly (or strands you). Aim for a row with no yellows or reds — then match the fewest-km route to turn the win purple.
           </p>
         </div>
       </details>
@@ -1786,7 +1755,7 @@
       <ul>
         <li><b>Anchor on hubs.</b> Major airports (Heathrow, Frankfurt, Doha, Atlanta, Singapore…) connect to almost everything — guessing one early often gives you a quick yellow/green.</li>
         <li><b>Mind the geography.</b> Direct flights tend to follow great-circle paths. If your start and destination are on opposite sides of an ocean, ask which hub the airlines actually fly through.</li>
-        <li><b>Use the colors.</b> A row that's all orange tells you the path is valid but not shortest — try replacing one airport with a more-connected hub. Yellow tells you the airport itself is right but either in the wrong slot <i>or</i> not reachable from the previous airport — try repositioning it, or swap the airport before it.</li>
+        <li><b>Use the colors.</b> Yellow means that leg is a real flight but a detour — the route works, it's just not the shortest, so try replacing an airport with a more-connected hub. Red means the leg doesn't fly (or strands you) — fix that airport or the one before it. Chase a row with no yellows or reds.</li>
         <li><b>The Learn page is your friend.</b> Open it from the menu to explore which destinations any airport flies to.</li>
         <li><b>Try modes.</b> "By Layovers" lets you train on routes of a specific length. "By Continent" restricts the graph to a region — useful for learning a part of the world. "Cryptic" hides the map and city names for pure code-recall practice.</li>
       </ul>
@@ -1940,10 +1909,9 @@
       <li>Tiles light up to show how close you are:</li>
     </ol>
     <div class="howto-key">
-      <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — right airport, right slot.</div></div>
-      <div class="legend-row"><div class="swatch yellow"></div><div><b>Yellow</b> — right airport, wrong slot (or no flight from the previous one).</div></div>
-      <div class="legend-row"><div class="swatch orange"></div><div><b>Orange</b> — a real flight, just not on the shortest route.</div></div>
-      <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight from the previous airport.</div></div>
+      <div class="legend-row"><div class="swatch green"></div><div><b>Green</b> — a real flight that stays on the shortest route.</div></div>
+      <div class="legend-row"><div class="swatch yellow"></div><div><b>Yellow</b> — a real flight, but a detour off the shortest route.</div></div>
+      <div class="legend-row"><div class="swatch red"></div><div><b>Red</b> — no flight from the previous airport, or a dead end.</div></div>
       <div class="legend-row"><div class="swatch purple"></div><div><b>Purple</b> — the best route possible: shortest hops and fewest km.</div></div>
     </div>
     <p class="howto-modes">Play the <b>Daily</b> puzzle, <b>train</b> on practice rounds, then <b>compete globally</b> with <b>Speedruns</b>.</p>
