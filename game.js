@@ -322,10 +322,38 @@
     );
   }
 
-  // Pick a random puzzle from a star tier. If the tier is empty (shouldn't
-  // happen with annotated data, but be defensive), fall back to the global pool.
+  // Star-tier ↔ live-tier label maps. Keep these in sync — they're the
+  // bridge between mode buttons (which use star numbers) and the live
+  // difficulty engine (which classifies by quintiles of the posterior
+  // completion-rate distribution).
+  const STARS_TO_TIER = { 1: "Simple", 2: "Easy", 3: "Medium", 4: "Hard", 5: "Extreme" };
+  const TIER_TO_STARS = { Simple: 1, Easy: 2, Medium: 3, Hard: 4, Extreme: 5 };
+
+  // Walk the full puzzle pool and bucket every puzzle by its current
+  // live tier. Used by the difficulty mode pickers to filter "Hard" to
+  // puzzles actually classified as Hard today, not just puzzles whose
+  // baked stars happen to be 4. Returns null if the stats engine isn't
+  // ready yet (the caller should fall back to baked stars).
+  function liveTierBucket(targetTier) {
+    if (!window.JetSetsStats || !window.JetSetsStats.computeRate) return null;
+    const pool = [];
+    for (let i = 0; i < PUZZLES.length; i++) {
+      const p = PUZZLES[i];
+      if (typeof p.prior_p !== "number") continue;
+      const r = window.JetSetsStats.computeRate(p.start, p.dest, p.prior_p);
+      if (r.tier === targetTier) pool.push(i);
+    }
+    return pool;
+  }
+
+  // Pick a random puzzle from a star tier. Prefers the LIVE classification
+  // (so clicking "Hard" gives a puzzle currently rated Hard, even if its
+  // baked stars say something else) and falls back to baked stars when
+  // the stats engine isn't ready or the live tier happens to be empty.
   function randomPuzzleByStars(stars) {
-    const pool = PUZZLES_BY_STARS[stars] || [];
+    const tier = STARS_TO_TIER[stars];
+    let pool = tier ? liveTierBucket(tier) : null;
+    if (!pool || !pool.length) pool = PUZZLES_BY_STARS[stars] || [];
     const indices = pool.length ? pool : PUZZLES.map((_, i) => i);
     const idx = indices[Math.floor(Math.random() * indices.length)];
     const label = MODE_LABELS[mode] || "Practice";
@@ -364,18 +392,26 @@
   }
 
   // Difficulty-tier speedrun: every puzzle is locked to the requested
-  // star tier, but the layover distribution within that tier still
-  // favours shorter routes so the player can rack up solves inside the
-  // 90-second window. Falls back to global if the tier somehow empty.
+  // tier (live classification, falling back to baked stars). Layover
+  // bias inside the tier favours shorter routes so the player can rack
+  // up solves inside the 90-second window. Falls back to the global
+  // speedrun picker if the tier is somehow empty everywhere.
   function randomDifficultySpeedrunPuzzle(stars) {
-    const pool = PUZZLES_BY_STARS[stars] || [];
+    const tier = STARS_TO_TIER[stars];
+    // Live-tier pool: puzzles currently classified as this tier.
+    const livePool = tier ? liveTierBucket(tier) : null;
+    const pool = (livePool && livePool.length)
+      ? livePool
+      : (PUZZLES_BY_STARS[stars] || []);
     if (!pool.length) return randomSpeedrunPuzzle();
-    // Try a layover-weighted pick FIRST (intersect tier × layover); fall
-    // back to a uniform pick within the tier if every weighted slot is
-    // empty (e.g. tier 5 with no 1-layover puzzles).
+    // Intersect with the speedrun layover bias: for up to 6 tries, sample
+    // a layover count and prefer puzzles in this tier with that layover.
+    // We rebuild the layover sub-bucket from the (live) pool since the
+    // pre-baked PUZZLES_BY_STARS_AND_LAYOVERS map is tied to the static
+    // stars and can drift from the live classification.
     for (let tries = 0; tries < 6; tries++) {
       const lay = pickWeighted(SPEEDRUN_LAYOVER_WEIGHTS, Math.random()) + 1;
-      const bucket = (PUZZLES_BY_STARS_AND_LAYOVERS[stars] || {})[lay] || [];
+      const bucket = pool.filter((i) => (PUZZLES[i].shortest_hops - 1) === lay);
       if (bucket.length) {
         const idx = bucket[Math.floor(Math.random() * bucket.length)];
         return Object.assign({ id: `${stars}★ #${idx + 1}` }, PUZZLES[idx]);
@@ -1985,15 +2021,15 @@
       percent = r.percent;
       tier = r.tier;
       lowConf = r.lowConfidence;
-      // Map % bucket → 1..5 stars to drive the visual fill.
-      if      (percent >= 80) derivedStars = 1;
-      else if (percent >= 60) derivedStars = 2;
-      else if (percent >= 40) derivedStars = 3;
-      else if (percent >= 20) derivedStars = 4;
-      else                    derivedStars = 5;
+      // Stars follow the LIVE tier so the visual fill never disagrees
+      // with the label — a route classified Hard always shows 4 stars,
+      // regardless of where its raw percentage falls. (Earlier we mapped
+      // stars off the raw percent, which drifted out of sync with the
+      // dynamic tier thresholds.)
+      derivedStars = TIER_TO_STARS[tier] || stars;
     } else if (stars) {
       // No stats engine yet — show the static tier so the header isn't blank.
-      tier = ["", "Simple", "Easy", "Medium", "Hard", "Extreme"][stars];
+      tier = STARS_TO_TIER[stars] || "";
     } else {
       difficultyEl.innerHTML = "";
       return;

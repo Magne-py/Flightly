@@ -1616,15 +1616,7 @@
     <details class="legend">
       <summary>How difficulty is set</summary>
       <div class="legend-body">
-        <p class="legend-para">Each puzzle is scored on five factors and bucketed into <b>1★ Simple</b> through <b>5★ Extreme</b>:</p>
-        <div class="legend-row"><div class="swatch-num">1</div><div><b>Hop count</b> — longer shortest routes are harder.</div></div>
-        <div class="legend-row"><div class="swatch-num">2</div><div><b>Distinct shortest paths</b> — many alternatives = easier.</div></div>
-        <div class="legend-row"><div class="swatch-num">3</div><div><b>Endpoint fame</b> — well-known hubs anchor your search.</div></div>
-        <div class="legend-row"><div class="swatch-num">4</div><div><b>Intermediate fame</b> — a famous airport on the shortest path is easier to find.</div></div>
-        <div class="legend-row"><div class="swatch-num">5</div><div><b>Slot tightness</b> — fewer valid airports per slot = harder.</div></div>
-        <p class="legend-para legend-warn">
-          <b>Heads up:</b> a <b>1★ Simple</b> puzzle can still stump you if there's only <b>one shortest path</b>. With a single valid route every slot has to be exactly right — the star rating reflects average solver odds, not a guarantee that the answer is obvious. Use the per-leg <code>(N)</code> count in the result panel to see which slot is the bottleneck.
-        </p>
+        <p class="legend-para">The difficulty rating is a <b>live estimate</b> of how often players solve this puzzle. Each route starts with a seeded guess; as more people play, the estimate updates from real results, and the tier (1★ Simple → 5★ Extreme) follows.</p>
       </div>
     </details>
   </div>
@@ -1757,15 +1749,7 @@
 
     <div class="about-card">
       <h2>Difficulty stars</h2>
-      <p class="muted">Each puzzle is rated 1★ (Simple) to 5★ (Extreme). The score combines:</p>
-      <ul>
-        <li><b>Hop count</b> — longer shortest routes are harder.</li>
-        <li><b>Number of distinct shortest paths</b> — many alternatives = easier.</li>
-        <li><b>Endpoint fame</b> — well-known hubs (Paris, JFK, etc.) are easier to anchor on.</li>
-        <li><b>Intermediate fame</b> — having a famous airport on the shortest path makes it findable.</li>
-        <li><b>Slot tightness</b> — narrow slot choices are harder.</li>
-      </ul>
-      <p class="muted">Final ratings are bucketed into quintiles, so the distribution is balanced across the 1–5★ range.</p>
+      <p class="muted">Each puzzle is rated 1★ (Simple) to 5★ (Extreme). The rating is a <b>live estimate</b> of the puzzle's completion rate — every route starts with a seeded guess from a few structural signals (route length, number of alternative paths, how famous the airports are), and the estimate updates from real player performance as more people play. Tier boundaries (Simple / Easy / Medium / Hard / Extreme) are drawn from where every puzzle currently sits in the live distribution, so the labels stay calibrated as the data grows.</p>
     </div>
 
     <div class="about-card">
