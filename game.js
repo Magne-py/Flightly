@@ -1067,6 +1067,8 @@
         && (winFlag || gaveUp || attemptsUsed > 0)) {
       window.JetSetsStats.submitAttempt(puzzle.start, puzzle.dest, !!winFlag);
     }
+    // Analytics: one event per finished puzzle, tagged win/lost + mode.
+    if (window.JS_track) JS_track((winFlag ? "puzzle-won" : "puzzle-lost") + "/" + mode);
     // First show always lands above the grid — score & shortest-route
     // reveal sit on top of the player's colored cells.
     showResultPanelAt("top");
@@ -1323,6 +1325,8 @@
         && (attempts.length > 0 || reason === "fail")) {
       window.JetSetsStats.submitAttempt(puzzle.start, puzzle.dest, false);
     }
+    // Analytics: one event per completed speedrun, with solve count bucket.
+    if (window.JS_track) JS_track("speedrun-finished");
     showSpeedrunSummary(reason);
     updateSpeedrunHud();
   }
@@ -1850,6 +1854,7 @@
 
   shareBtn.addEventListener("click", () => {
     const isSummary = resultPanel && resultPanel.classList.contains("speedrun-summary-panel");
+    if (window.JS_track) JS_track(isSummary ? "share-speedrun" : "share-puzzle");
     const text = isSummary ? buildSpeedrunShare() : buildShare();
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(() => toast_show("Copied to clipboard"));

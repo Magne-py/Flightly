@@ -4,6 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JetSets — the daily flight-routing puzzle</title>
+
+<!-- GoatCounter analytics. Replace MYCODE with your site code from your
+     goatcounter.com dashboard (e.g. data-goatcounter="https://jetsets.goatcounter.com/count"). -->
+<script>
+  // Safe wrapper: queues events until GoatCounter loads, no-ops if it never
+  // does (blocked, offline, localhost). Call JS_track("event-name") anywhere.
+  window.JS_track = function (name) {
+    try {
+      if (window.goatcounter && window.goatcounter.count) {
+        window.goatcounter.count({ path: name, title: name, event: true });
+      }
+    } catch (e) { /* analytics must never break the game */ }
+  };
+</script>
+<script data-goatcounter="https://jetsets.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+
 <style>
   :root {
     --bg: #0e1a2b;

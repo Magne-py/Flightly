@@ -232,6 +232,7 @@ function wireForms() {
       setBusy(submit, true);
       try {
         const result = await signUp(username, email, password);
+        if (window.JS_track) JS_track("signup");
         // If email confirmations are OFF in Supabase (default for new
         // projects), we get a session immediately and can close the modal.
         // If they're ON, no session yet — tell the user to check their inbox.
