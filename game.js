@@ -679,13 +679,16 @@
   }
 
   // ---------- Grading ----------
-  // Traffic-light, leg-based grading. Each cell is colored by the flight
-  // LEADING INTO it — the hop from the previous airport (start for slot 0):
-  //   green  — that hop is a real flight AND it stays on a shortest route
-  //            (it cuts the hop-distance-to-destination by exactly 1).
-  //   yellow — that hop is a real flight, but it's a detour: it does not
-  //            advance you along a shortest route (you can still finish,
-  //            you're just adding stops/distance).
+  // Traffic-light grading. Each cell is colored by the flight LEADING INTO
+  // it — the hop from the previous airport (start for slot 0) — combined
+  // with whether this airport is still on a shortest START→dest route:
+  //   green  — real flight in, AND this airport sits on at least one
+  //            shortest start→dest path at this position. "On a shortest
+  //            route" is judged against the START, not the previous airport,
+  //            so once you detour you can't get misleading greens on later
+  //            legs (e.g. a hub→Vegas hop that happens to step closer).
+  //   yellow — real flight in, but you're off the shortest route: a detour.
+  //            You can still finish, you're just adding stops/distance.
   //   red    — no flight exists from the previous airport, OR flying here
   //            strands you (no onward path reaches dest in the stops left).
   // Purple is NOT a grading color — it's reserved for the best-route win
@@ -720,14 +723,18 @@
       const { code, slot } = filled[i];
       const legValid = !!(ACTIVE_ROUTES[prev] && ACTIVE_ROUTES[prev].includes(code));
       const onward = distToDest[code];           // hops from this airport to dest
-      const prevOnward = distToDest[prev];        // hops from previous airport to dest
       const canFinish = onward !== undefined && onward <= (SLOTS - slot);
-      // A hop is "on a shortest route" when it moves you one hop closer to
-      // the destination (shortest-path BFS distance drops by exactly 1).
-      const staysShortest = onward !== undefined && prevOnward !== undefined
-                            && onward === prevOnward - 1;
+      // GLOBAL shortest-route test: is this airport on at least one shortest
+      // start→dest path at exactly this slot (distance slot+1 from start)?
+      // shortestPathBySlot[k] is the set of on-path airports at that depth.
+      // Anchoring to the START (not the previous airport) means a detour can
+      // no longer light later legs green — once you're off the shortest path
+      // your slot/distance no longer lines up, so the rest reads yellow.
+      const onShortest = !!(shortestPathBySlot
+                            && shortestPathBySlot[slot]
+                            && shortestPathBySlot[slot].has(code));
 
-      if (legValid && canFinish && staysShortest) {
+      if (legValid && canFinish && onShortest) {
         colors[slot] = "green";
       } else if (legValid && canFinish) {
         colors[slot] = "yellow";
