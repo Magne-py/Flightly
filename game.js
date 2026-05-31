@@ -2001,31 +2001,33 @@
     // who don't care never see the explanation; curious ones can dig in.
     if (percent != null) {
       const starMark = lowConf ? `<span class="rate-est" aria-label="estimated">*</span>` : "";
+      // Two-state button: tap to expand "XX%" → "Est. completion rate XX%",
+      // tap again to collapse. Data attributes keep the JS toggle simple
+      // and the markup self-describing.
       html +=
         `<button type="button" class="rate" id="rate-toggle"
-                 aria-expanded="false" aria-controls="rate-explainer"
-                 title="What this is">${percent}%${starMark}</button>`;
-      html +=
-        `<div class="rate-explainer" id="rate-explainer" role="region"
-              aria-label="What the completion rate means" hidden>
-           <p class="re-line">Estimated completion percentage.</p>
-         </div>`;
+                 aria-pressed="false" aria-label="Estimated completion rate"
+                 data-percent="${percent}"
+                 title="Tap to expand">${percent}%${starMark}</button>`;
     }
     difficultyEl.innerHTML = html;
-    // Wire the toggle. The expander lives inside the same <span> so we
-    // rebind every render (cheap — one button).
     const toggleBtn = document.getElementById("rate-toggle");
-    const expander  = document.getElementById("rate-explainer");
-    if (toggleBtn && expander) {
+    if (toggleBtn) {
       toggleBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const open = !expander.hasAttribute("hidden");
-        if (open) {
-          expander.setAttribute("hidden", "");
-          toggleBtn.setAttribute("aria-expanded", "false");
+        const expanded = toggleBtn.getAttribute("aria-pressed") === "true";
+        const pct = toggleBtn.getAttribute("data-percent");
+        const starMark = toggleBtn.querySelector(".rate-est")
+          ? ' <span class="rate-est" aria-label="estimated">*</span>'
+          : "";
+        if (expanded) {
+          // Collapse back to just the percentage.
+          toggleBtn.innerHTML = pct + "%" + starMark;
+          toggleBtn.setAttribute("aria-pressed", "false");
         } else {
-          expander.removeAttribute("hidden");
-          toggleBtn.setAttribute("aria-expanded", "true");
+          // Expand to the full descriptor.
+          toggleBtn.innerHTML = "Est. completion rate " + pct + "%" + starMark;
+          toggleBtn.setAttribute("aria-pressed", "true");
         }
       });
     }

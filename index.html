@@ -64,26 +64,23 @@
     .bg-planes { display: none; }
   }
 
-  /* Top header — title sits centered above the tagline; the hamburger
-     menu floats in the top right corner and opens the About/Learn
-     dropdown. The header is `position: relative` so we can absolutely
-     position the menu without breaking the title's centering. */
+  /* Top header — single flex row: title on the left, mode-toggle takes
+     the middle, auth + hamburger on the right. Wraps onto multiple
+     rows on narrower viewports. Lives above sticky map siblings via
+     the z-index bump. */
   .app-header {
     width: 100%; max-width: 1180px;
     position: relative;
-    /* The header needs to sit above the rest of the page so its
-       dropdowns (hamburger menu, auth menu) aren't covered by sticky
-       siblings — the .right-col map panel uses position:sticky which
-       establishes its own stacking context and otherwise paints over
-       absolutely-positioned popovers from earlier in the DOM. */
     z-index: 50;
-    display: flex; align-items: center; justify-content: center;
-    margin-bottom: 4px;
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
   }
   .title {
-    font-size: 32px; font-weight: 800; letter-spacing: -0.5px; margin: 0;
-    display: flex; align-items: center; gap: 10px;
+    font-size: 24px; font-weight: 800; letter-spacing: -0.5px; margin: 0;
+    display: flex; align-items: center; gap: 8px;
     cursor: pointer; user-select: none;
+    flex: 0 0 auto;
     background: transparent; border: 0; color: var(--text); padding: 0;
     font-family: inherit;
   }
@@ -92,14 +89,17 @@
   .title .plane { display: inline-block; transform: rotate(-25deg); color: var(--accent); }
 
   .nav-menu {
-    position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+    position: relative;
+    flex: 0 0 auto;
   }
   /* ---------- Auth chip ---------- */
-  /* Lives just left of the hamburger. Shows "Sign in" by default, then
-     swaps to the user's username with a dropdown for sign-out once
-     authenticated. */
+  /* Lives just left of the hamburger inside the flex header.
+     margin-left: auto pushes the auth chip + hamburger to the far
+     right of the row regardless of mode-toggle width. */
   .auth-wrap {
-    position: absolute; right: 52px; top: 50%; transform: translateY(-50%);
+    position: relative;
+    flex: 0 0 auto;
+    margin-left: auto;
   }
   .auth-btn {
     background: var(--panel); border: 1px solid var(--border);
@@ -224,7 +224,6 @@
   }
   .nav-popover button:hover { background: var(--bg-alt); color: var(--accent); }
   .nav-popover button.active { background: var(--accent); color: var(--bg); }
-  .tagline { color: var(--muted); font-size: 14px; margin: 0 0 18px; text-align: center; }
   .mode-toggle {
     display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
     background: var(--panel); border: 1px solid var(--border);
@@ -234,6 +233,26 @@
     background: transparent; color: var(--muted); border: 0; padding: 8px 14px;
     border-radius: 999px; font-weight: 600; font-size: 13px; cursor: pointer;
     transition: all 0.15s;
+  }
+  /* When the mode-toggle is in the app header (not floating below
+     the title), shrink padding and let it claim the flexible middle
+     space between the title and the auth/hamburger chip. */
+  .header-mode-toggle {
+    margin-bottom: 0;
+    padding: 3px;
+    flex: 0 1 auto;
+    justify-content: flex-start;
+  }
+  .header-mode-toggle button,
+  .header-mode-toggle .mode-trigger {
+    padding: 6px 11px; font-size: 12px;
+  }
+  @media (max-width: 880px) {
+    /* Drop the header onto two rows: title + auth/nav on top,
+       mode-toggle on its own row underneath. */
+    .header-mode-toggle { flex: 1 1 100%; order: 1; justify-content: center; }
+    .auth-wrap { order: 0; }
+    .nav-menu { order: 0; }
   }
   .mode-toggle button:hover { color: var(--text); }
   .mode-toggle button.active { background: var(--accent); color: var(--bg); }
@@ -381,34 +400,14 @@
     transition: border-color 0.12s, background 0.12s;
   }
   .puzzle-difficulty .rate:hover { border-color: var(--accent); background: var(--panel); }
-  .puzzle-difficulty .rate[aria-expanded="true"] {
+  /* When expanded, the rate pill switches to the filled accent style
+     so the longer "Est. completion rate XX%" reads as the active state. */
+  .puzzle-difficulty .rate[aria-pressed="true"] {
     background: var(--accent); color: var(--bg); border-color: var(--accent);
   }
   .puzzle-difficulty .rate-est {
     font-weight: 700; opacity: 0.6; font-size: 11px;
   }
-  /* Expandable explainer panel — full-width inside the badge, takes a
-     new row when shown. Soft border + muted text so it doesn't compete
-     with the puzzle header itself. */
-  .puzzle-difficulty .rate-explainer {
-    flex: 1 1 100%;
-    margin: 8px 0 0; padding: 10px 12px;
-    background: var(--bg-alt); border: 1px solid var(--border);
-    border-radius: 10px;
-    letter-spacing: 0;
-  }
-  .puzzle-difficulty .rate-explainer[hidden] { display: none; }
-  .puzzle-difficulty .rate-explainer .re-line {
-    margin: 0 0 6px; color: var(--text);
-    font-size: 12px; line-height: 1.55; font-weight: 400;
-  }
-  .puzzle-difficulty .rate-explainer .re-line:last-child { margin-bottom: 0; }
-  .puzzle-difficulty .rate-explainer .re-line b { color: var(--accent); }
-  .puzzle-difficulty .rate-explainer .re-tag {
-    display: inline-block; margin-top: 2px;
-    color: var(--muted); font-size: 11px; font-style: italic;
-  }
-  .puzzle-difficulty .rate-explainer .re-tag-live { color: var(--green); font-style: normal; }
 
   .grid { width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 6px; }
   .row {
@@ -1328,9 +1327,84 @@
   <button id="title-link" class="title" type="button" aria-label="JetSets — go to daily puzzle">
     <span class="plane">&#9992;</span> JetSets
   </button>
-  <!-- Auth chip — sits to the LEFT of the hamburger. Shows "Sign in" when
-       signed out; shows the user's username with a sign-out dropdown
-       when signed in. State is owned by auth.js. -->
+  <!-- Mode-toggle moves into the header on a single row so the
+       puzzle area fits above the fold on shorter laptop screens.
+       game.js retains all its existing bindings; only the position
+       in the DOM changed. -->
+  <div class="mode-toggle header-mode-toggle" role="tablist" aria-label="Game mode">
+    <button id="mode-daily"  class="active">Daily</button>
+    <button id="mode-random" title="A random puzzle from any difficulty tier">Random</button>
+    <button id="mode-cryptic" class="group-end" title="Random puzzle, no map, IATA codes only — pure pathfinding">Cryptic</button>
+
+    <div class="mode-dropdown group-end" id="dropdown-difficulty">
+      <button class="mode-trigger" id="trigger-difficulty" type="button"
+              aria-haspopup="true" aria-expanded="false">
+        Difficulty<span class="caret">&#9662;</span>
+      </button>
+      <div class="mode-menu" role="menu" aria-labelledby="trigger-difficulty">
+        <button id="mode-simple"  data-stars="1" role="menuitem" title="Well-known hubs, many alternative routes">Simple</button>
+        <button id="mode-easy"    data-stars="2" role="menuitem" title="Familiar hubs, a couple of alternative routes">Easy</button>
+        <button id="mode-medium"  data-stars="3" role="menuitem" title="Mixed-fame stops, narrow path tolerance">Medium</button>
+        <button id="mode-hard"    data-stars="4" role="menuitem" title="Less-familiar connections, tight slot choices">Hard</button>
+        <button id="mode-extreme" data-stars="5" role="menuitem" title="Obscure hubs, long routes, almost no margin for error">Extreme</button>
+      </div>
+    </div>
+
+    <div class="mode-dropdown group-end" id="dropdown-continent">
+      <button class="mode-trigger" id="trigger-continent" type="button"
+              aria-haspopup="true" aria-expanded="false">
+        Continent<span class="caret">&#9662;</span>
+      </button>
+      <div class="mode-menu" role="menu" aria-labelledby="trigger-continent">
+        <button id="mode-africa"        role="menuitem" title="Routes within Africa">Africa</button>
+        <button id="mode-europe"        role="menuitem" title="Routes within Europe">Europe</button>
+        <button id="mode-north-america" role="menuitem" title="Routes within North America (incl. Caribbean &amp; Central America)">North America</button>
+        <button id="mode-south-america" role="menuitem" title="Routes within South America">South America</button>
+        <button id="mode-asia"          role="menuitem" title="Routes within Asia">Asia</button>
+        <button id="mode-oceania"       role="menuitem" title="Routes within Oceania">Oceania</button>
+      </div>
+    </div>
+
+    <div class="mode-dropdown group-end" id="dropdown-layovers">
+      <button class="mode-trigger" id="trigger-layovers" type="button"
+              aria-haspopup="true" aria-expanded="false">
+        Layovers<span class="caret">&#9662;</span>
+      </button>
+      <div class="mode-menu" role="menu" aria-labelledby="trigger-layovers">
+        <button id="mode-layover-1" data-layovers="1" role="menuitem" title="Routes whose shortest path is exactly 1 layover">1 layover</button>
+        <button id="mode-layover-2" data-layovers="2" role="menuitem" title="Routes whose shortest path is exactly 2 layovers">2 layovers</button>
+        <button id="mode-layover-3" data-layovers="3" role="menuitem" title="Routes whose shortest path is exactly 3 layovers">3 layovers</button>
+        <button id="mode-layover-4" data-layovers="4" role="menuitem" title="Routes whose shortest path is exactly 4 layovers">4 layovers</button>
+      </div>
+    </div>
+
+    <div class="mode-dropdown" id="dropdown-speedrun">
+      <button class="mode-trigger" id="trigger-speedrun" type="button"
+              aria-haspopup="true" aria-expanded="false">
+        Speedrun<span class="caret">&#9662;</span>
+      </button>
+      <div class="mode-menu" role="menu" aria-labelledby="trigger-speedrun">
+        <button id="mode-speedrun-global"        role="menuitem" title="90-second run, any puzzle worldwide">Global</button>
+        <div class="mode-menu-sep" role="separator">Difficulty</div>
+        <button id="mode-speedrun-simple"        role="menuitem" title="90-second run, 1★ Simple puzzles only">Simple ★</button>
+        <button id="mode-speedrun-easy"          role="menuitem" title="90-second run, 2★ Easy puzzles only">Easy ★★</button>
+        <button id="mode-speedrun-medium"        role="menuitem" title="90-second run, 3★ Medium puzzles only">Medium ★★★</button>
+        <button id="mode-speedrun-hard"          role="menuitem" title="90-second run, 4★ Hard puzzles only">Hard ★★★★</button>
+        <button id="mode-speedrun-extreme"       role="menuitem" title="90-second run, 5★ Extreme puzzles only">Extreme ★★★★★</button>
+        <div class="mode-menu-sep" role="separator">Continent</div>
+        <button id="mode-speedrun-africa"        role="menuitem" title="90-second run, Africa puzzles only">Africa</button>
+        <button id="mode-speedrun-europe"        role="menuitem" title="90-second run, Europe puzzles only">Europe</button>
+        <button id="mode-speedrun-north-america" role="menuitem" title="90-second run, North America puzzles only">North America</button>
+        <button id="mode-speedrun-south-america" role="menuitem" title="90-second run, South America puzzles only">South America</button>
+        <button id="mode-speedrun-asia"          role="menuitem" title="90-second run, Asia puzzles only">Asia</button>
+        <button id="mode-speedrun-oceania"       role="menuitem" title="90-second run, Oceania puzzles only">Oceania</button>
+        <div class="mode-menu-sep" role="separator">Other</div>
+        <button id="mode-speedrun-cryptic"       role="menuitem" title="90-second run, codes only — no map, no place names">Cryptic</button>
+      </div>
+    </div>
+  </div>
+  <!-- Auth chip — shows "Sign in" when signed out; shows the user's
+       username with a sign-out dropdown when signed in. -->
   <div class="auth-wrap" id="auth-wrap">
     <button id="auth-btn" class="auth-btn" type="button">Sign in</button>
     <div id="auth-menu" class="auth-menu" role="menu" style="display:none">
@@ -1398,81 +1472,7 @@
     </p>
   </div>
 </div>
-<p class="tagline">Route the shortest journey in 6 tries.</p>
-
 <div id="view-game" class="view active">
-<div class="mode-toggle" role="tablist" aria-label="Game mode">
-  <button id="mode-daily"  class="active">Daily</button>
-  <button id="mode-random" title="A random puzzle from any difficulty tier">Random</button>
-  <button id="mode-cryptic" class="group-end" title="Random puzzle, no map, IATA codes only — pure pathfinding">Cryptic</button>
-
-  <div class="mode-dropdown group-end" id="dropdown-difficulty">
-    <button class="mode-trigger" id="trigger-difficulty" type="button"
-            aria-haspopup="true" aria-expanded="false">
-      By Difficulty<span class="caret">&#9662;</span>
-    </button>
-    <div class="mode-menu" role="menu" aria-labelledby="trigger-difficulty">
-      <button id="mode-simple"  data-stars="1" role="menuitem" title="Well-known hubs, many alternative routes">Simple</button>
-      <button id="mode-easy"    data-stars="2" role="menuitem" title="Familiar hubs, a couple of alternative routes">Easy</button>
-      <button id="mode-medium"  data-stars="3" role="menuitem" title="Mixed-fame stops, narrow path tolerance">Medium</button>
-      <button id="mode-hard"    data-stars="4" role="menuitem" title="Less-familiar connections, tight slot choices">Hard</button>
-      <button id="mode-extreme" data-stars="5" role="menuitem" title="Obscure hubs, long routes, almost no margin for error">Extreme</button>
-    </div>
-  </div>
-
-  <div class="mode-dropdown group-end" id="dropdown-continent">
-    <button class="mode-trigger" id="trigger-continent" type="button"
-            aria-haspopup="true" aria-expanded="false">
-      By Continent<span class="caret">&#9662;</span>
-    </button>
-    <div class="mode-menu" role="menu" aria-labelledby="trigger-continent">
-      <button id="mode-africa"        role="menuitem" title="Routes within Africa">Africa</button>
-      <button id="mode-europe"        role="menuitem" title="Routes within Europe">Europe</button>
-      <button id="mode-north-america" role="menuitem" title="Routes within North America (incl. Caribbean &amp; Central America)">North America</button>
-      <button id="mode-south-america" role="menuitem" title="Routes within South America">South America</button>
-      <button id="mode-asia"          role="menuitem" title="Routes within Asia">Asia</button>
-      <button id="mode-oceania"       role="menuitem" title="Routes within Oceania">Oceania</button>
-    </div>
-  </div>
-
-  <div class="mode-dropdown group-end" id="dropdown-layovers">
-    <button class="mode-trigger" id="trigger-layovers" type="button"
-            aria-haspopup="true" aria-expanded="false">
-      By Layovers<span class="caret">&#9662;</span>
-    </button>
-    <div class="mode-menu" role="menu" aria-labelledby="trigger-layovers">
-      <button id="mode-layover-1" data-layovers="1" role="menuitem" title="Routes whose shortest path is exactly 1 layover">1 layover</button>
-      <button id="mode-layover-2" data-layovers="2" role="menuitem" title="Routes whose shortest path is exactly 2 layovers">2 layovers</button>
-      <button id="mode-layover-3" data-layovers="3" role="menuitem" title="Routes whose shortest path is exactly 3 layovers">3 layovers</button>
-      <button id="mode-layover-4" data-layovers="4" role="menuitem" title="Routes whose shortest path is exactly 4 layovers">4 layovers</button>
-    </div>
-  </div>
-
-  <div class="mode-dropdown" id="dropdown-speedrun">
-    <button class="mode-trigger" id="trigger-speedrun" type="button"
-            aria-haspopup="true" aria-expanded="false">
-      Speedrun<span class="caret">&#9662;</span>
-    </button>
-    <div class="mode-menu" role="menu" aria-labelledby="trigger-speedrun">
-      <button id="mode-speedrun-global"        role="menuitem" title="90-second run, any puzzle worldwide">Global</button>
-      <div class="mode-menu-sep" role="separator">Difficulty</div>
-      <button id="mode-speedrun-simple"        role="menuitem" title="90-second run, 1★ Simple puzzles only">Simple ★</button>
-      <button id="mode-speedrun-easy"          role="menuitem" title="90-second run, 2★ Easy puzzles only">Easy ★★</button>
-      <button id="mode-speedrun-medium"        role="menuitem" title="90-second run, 3★ Medium puzzles only">Medium ★★★</button>
-      <button id="mode-speedrun-hard"          role="menuitem" title="90-second run, 4★ Hard puzzles only">Hard ★★★★</button>
-      <button id="mode-speedrun-extreme"       role="menuitem" title="90-second run, 5★ Extreme puzzles only">Extreme ★★★★★</button>
-      <div class="mode-menu-sep" role="separator">Continent</div>
-      <button id="mode-speedrun-africa"        role="menuitem" title="90-second run, Africa puzzles only">Africa</button>
-      <button id="mode-speedrun-europe"        role="menuitem" title="90-second run, Europe puzzles only">Europe</button>
-      <button id="mode-speedrun-north-america" role="menuitem" title="90-second run, North America puzzles only">North America</button>
-      <button id="mode-speedrun-south-america" role="menuitem" title="90-second run, South America puzzles only">South America</button>
-      <button id="mode-speedrun-asia"          role="menuitem" title="90-second run, Asia puzzles only">Asia</button>
-      <button id="mode-speedrun-oceania"       role="menuitem" title="90-second run, Oceania puzzles only">Oceania</button>
-      <div class="mode-menu-sep" role="separator">Other</div>
-      <button id="mode-speedrun-cryptic"       role="menuitem" title="90-second run, codes only — no map, no place names">Cryptic</button>
-    </div>
-  </div>
-</div>
 
 <div class="layout">
   <div class="left-col">
