@@ -312,10 +312,60 @@
     };
   }
 
+  // ---------- Daily selection: deterministic non-repeating cycle ----------
+  // The Daily is NOT a weighted random sample (that repeated puzzles within
+  // ~2 weeks and left ~20% of the pool unused). Instead it walks a
+  // deterministic shuffled permutation of an *eligible* subset, so every
+  // eligible puzzle is served exactly once before any repeat. Eligibility:
+  //   • at least DAILY_MIN_LAYOVERS layovers (shortest_hops >= that + 1) —
+  //     never a trivial 1-stop hop.
+  //   • not "terribly hard": stars <= DAILY_MAX_STARS (4 = up to Hard, no
+  //     Extreme). Lower to 3 to also exclude Hard.
+  // Random / Speedrun / practice modes keep the weighted sampler above.
+  const DAILY_MIN_LAYOVERS = 2;
+  const DAILY_MAX_STARS    = 4;
+  // Day 0 of the Daily cycle (UTC). Puzzle order is stable from this anchor.
+  const DAILY_EPOCH_UTC    = Date.UTC(2026, 5, 1); // 2026-06-01
+
+  const DAILY_ELIGIBLE = (function () {
+    const out = [];
+    for (let i = 0; i < PUZZLES.length; i++) {
+      const p   = PUZZLES[i];
+      const lay = (p.shortest_hops || 0) - 1;
+      if (lay >= DAILY_MIN_LAYOVERS && p.stars >= 1 && p.stars <= DAILY_MAX_STARS) {
+        out.push(i);
+      }
+    }
+    // Safety net: never let an over-strict filter empty the Daily.
+    return out.length ? out : PUZZLES.map(function (_, i) { return i; });
+  })();
+
+  // Deterministic Fisher-Yates shuffle of a copy of `arr`, driven by `rng`.
+  function shuffledCopy(arr, rng) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  // Whole days elapsed since the cycle anchor (clamped at 0 for pre-launch).
+  function dailyDayNumber() {
+    const now = new Date();
+    const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    return Math.max(0, Math.round((todayUTC - DAILY_EPOCH_UTC) / 86400000));
+  }
+
   function dailyPuzzle() {
-    // Deterministic per UTC date, but sampled from the weighted joint
-    // distribution rather than uniform-over-PUZZLES.
-    const idx = weightedPuzzleIndex(seededRng(dateSeed()));
+    const day   = dailyDayNumber();
+    const len   = DAILY_ELIGIBLE.length;
+    const cycle = Math.floor(day / len);  // which full pass through the pool
+    const pos   = day % len;              // position within this pass
+    // Re-shuffle each cycle so year-2 order doesn't mirror year-1, but it
+    // stays fully deterministic (same date → same puzzle, every device).
+    const order = shuffledCopy(DAILY_ELIGIBLE, seededRng((0x9E3779B1 + cycle) | 0));
+    const idx   = order[pos];
     return Object.assign(
       { id: "Daily " + new Date().toISOString().slice(0, 10) },
       PUZZLES[idx]
