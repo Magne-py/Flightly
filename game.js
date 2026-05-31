@@ -777,6 +777,14 @@
     $("dest-city").textContent = AIRPORTS[puzzle.dest].city;
     $("dest-country").textContent =
       (window.COUNTRY_CODES && window.COUNTRY_CODES[AIRPORTS[puzzle.dest].country]) || "";
+    // Show the layover count INSIDE the route-arrow (between the plane
+    // glyph and the arrow tip). Layovers = shortest_hops - 1; for a
+    // direct flight we leave the slot empty so the arrow reads cleanly.
+    const raHops = $("route-arrow-hops");
+    if (raHops) {
+      const layovers = (puzzle.shortest_hops || 0) - 1;
+      raHops.textContent = layovers > 0 ? String(layovers) : "";
+    }
     $("puzzle-id").textContent = puzzle.id || "";
     renderDifficulty();
     const hopsText = puzzle.shortest_hops === 2
